@@ -1,0 +1,48 @@
+import '../utils/enums.dart';
+
+class Booking {
+  Booking({
+    required this.id,
+    required this.name,
+    required this.phone,
+    required this.governorate,
+    required this.source,
+    required this.visitDate,
+    required this.status,
+    required this.callCenterId,
+    this.notes,
+    this.callCenterName,
+    this.customerId,
+    this.createdAt,
+  });
+
+  final String id;
+  final String name;
+  final String phone;
+  final String governorate;
+  final BookingSource source;
+  final DateTime visitDate;
+  final BookingStatus status;
+  final String callCenterId;
+  final String? notes;
+  final String? callCenterName;
+  final String? customerId;
+  final DateTime? createdAt;
+
+  factory Booking.fromJson(Map<String, dynamic> json) => Booking(
+        id: json['id'] as String,
+        name: json['name'] as String,
+        phone: json['phone'] as String,
+        governorate: json['governorate'] as String,
+        source: BookingSourceX.fromApi(json['source'] as String),
+        visitDate: DateTime.parse(json['visit_date'] as String),
+        status: BookingStatusX.fromApi(json['status'] as String),
+        callCenterId: json['call_center_id'] as String,
+        notes: json['notes'] as String?,
+        callCenterName: json['call_center_name'] as String?,
+        customerId: json['customer_id'] as String?,
+        createdAt: json['created_at'] != null
+            ? DateTime.parse(json['created_at'] as String)
+            : null,
+      );
+}
