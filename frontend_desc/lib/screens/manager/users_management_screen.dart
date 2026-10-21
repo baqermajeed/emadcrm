@@ -13,6 +13,7 @@ import '../../services/user_service.dart';
 import '../../utils/enums.dart';
 import '../../utils/validators.dart';
 import '../../widgets/app_scaffold.dart';
+import '../../widgets/staff_avatar.dart';
 
 class UsersManagementScreen extends StatefulWidget {
   const UsersManagementScreen({super.key, this.bottom});
@@ -281,7 +282,7 @@ class _UserCard extends StatelessWidget {
           ),
           child: Row(
             children: [
-              _UserAvatar(user: user, radius: 24),
+              StaffAvatar(user: user, radius: 24),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -358,36 +359,6 @@ class _UserCard extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _UserAvatar extends StatelessWidget {
-  const _UserAvatar({required this.user, this.radius = 24});
-
-  final AppUser user;
-  final double radius;
-
-  @override
-  Widget build(BuildContext context) {
-    final url = user.avatarNetworkUrl;
-    final initial = user.fullName.trim().isNotEmpty
-        ? user.fullName.trim().substring(0, 1)
-        : '?';
-    return CircleAvatar(
-      radius: radius,
-      backgroundColor: ReceptionTokens.plusBg,
-      backgroundImage: url != null ? CachedNetworkImageProvider(url) : null,
-      child: url == null
-          ? Text(
-              initial,
-              style: GoogleFonts.cairo(
-                fontWeight: FontWeight.w800,
-                color: ReceptionTokens.navy,
-                fontSize: radius * 0.75,
-              ),
-            )
-          : null,
     );
   }
 }

@@ -161,10 +161,28 @@ class UserService:
         path = Path(settings.upload_dir) / relative
         path.unlink(missing_ok=True)
 
-    async def name_map(self, ids: list[str]) -> dict[str, str]:
+    async def profile_map(self, ids: list[str]) -> dict[str, dict]:
+        """Map user id -> {full_name, avatar_url}."""
         if not ids:
             return {}
         object_ids = [oid(i, "user") for i in ids if i]
-        cursor = self.col.find({"_id": {"$in": object_ids}}, {"full_name": 1})
+        cursor = self.col.find(
+            {"_id": {"$in": object_ids}},
+            {"full_name": 1, "avatar_url": 1},
+        )
         docs = await cursor.to_list(len(object_ids))
-        return {str(d["_id"]): d["full_name"] for d in docs}
+        return {
+            str(d["_id"]): {
+                "full_name": d.get("full_name"),
+                "avatar_url": d.get("avatar_url"),
+            }
+            for d in docs
+        }
+
+    async def name_map(self, ids: list[str]) -> dict[str, str]:
+        profiles = await self.profile_map(ids)
+        return {
+            k: v["full_name"]
+            for k, v in profiles.items()
+            if v.get("full_name")
+        }

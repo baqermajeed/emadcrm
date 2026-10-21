@@ -47,6 +47,7 @@ class ReservationOut(ORMModel):
     notes: str | None = None
     sales_employee_id: str
     sales_employee_name: str | None = None
+    sales_employee_avatar_url: str | None = None
     reservation_date: datetime
     completion_deadline: datetime
     status: ReservationStatus

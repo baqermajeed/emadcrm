@@ -23,6 +23,8 @@ class VisitOut(ORMModel):
     notes: str | None = None
     sales_employee_id: str | None = None
     sales_employee_name: str | None = None
+    sales_employee_avatar_url: str | None = None
+    recorded_by_avatar_url: str | None = None
     recorded_by: str | None = None
     recorded_by_name: str | None = None
     created_at: datetime

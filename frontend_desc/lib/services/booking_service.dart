@@ -38,6 +38,8 @@ class BookingService {
   Future<Booking> approve({
     required String bookingId,
     required String salesEmployeeId,
+    VisitType? visitType,
+    String? existingCustomerId,
     String? profession,
     String? address,
     HowKnewCenter? howKnew,
@@ -46,6 +48,8 @@ class BookingService {
   }) async {
     final data = await _api.post('/api/bookings/$bookingId/approve', body: {
       'sales_employee_id': salesEmployeeId,
+      'visit_type': visitType?.api,
+      'existing_customer_id': existingCustomerId,
       'profession': profession,
       'address': address,
       'how_knew': howKnew?.api,

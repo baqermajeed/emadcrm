@@ -21,10 +21,14 @@ class VisitService:
                 ids.add(d["sales_employee_id"])
             if d.get("recorded_by"):
                 ids.add(d["recorded_by"])
-        names = await self.users.name_map(list(ids))
+        profiles = await self.users.profile_map(list(ids))
         for d in docs:
-            d["sales_employee_name"] = names.get(d.get("sales_employee_id") or "")
-            d["recorded_by_name"] = names.get(d.get("recorded_by") or "")
+            sales = profiles.get(d.get("sales_employee_id") or "", {})
+            recorded = profiles.get(d.get("recorded_by") or "", {})
+            d["sales_employee_name"] = sales.get("full_name")
+            d["sales_employee_avatar_url"] = sales.get("avatar_url")
+            d["recorded_by_name"] = recorded.get("full_name")
+            d["recorded_by_avatar_url"] = recorded.get("avatar_url")
         return docs
 
     async def create(self, data: VisitCreate, actor: dict) -> dict:

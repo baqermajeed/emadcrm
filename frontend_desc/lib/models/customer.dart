@@ -43,10 +43,12 @@ class Customer {
     this.address,
     this.callCenterId,
     this.callCenterName,
+    this.callCenterAvatarUrl,
     this.howKnew,
     this.referralBuyerName,
     this.salesEmployeeId,
     this.salesEmployeeName,
+    this.salesEmployeeAvatarUrl,
     this.notes,
     this.status,
     this.bookingId,
@@ -63,10 +65,12 @@ class Customer {
   final String? address;
   final String? callCenterId;
   final String? callCenterName;
+  final String? callCenterAvatarUrl;
   final HowKnewCenter? howKnew;
   final String? referralBuyerName;
   final String? salesEmployeeId;
   final String? salesEmployeeName;
+  final String? salesEmployeeAvatarUrl;
   final String? notes;
   final CustomerStatus? status;
   final String? bookingId;
@@ -83,10 +87,12 @@ class Customer {
         address: json['address'] as String?,
         callCenterId: json['call_center_id'] as String?,
         callCenterName: json['call_center_name'] as String?,
+        callCenterAvatarUrl: json['call_center_avatar_url'] as String?,
         howKnew: HowKnewX.fromApi(json['how_knew'] as String?),
         referralBuyerName: json['referral_buyer_name'] as String?,
         salesEmployeeId: json['sales_employee_id'] as String?,
         salesEmployeeName: json['sales_employee_name'] as String?,
+        salesEmployeeAvatarUrl: json['sales_employee_avatar_url'] as String?,
         notes: json['notes'] as String?,
         status: json['status'] == null
             ? null

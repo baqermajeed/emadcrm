@@ -19,6 +19,7 @@ import '../../models/visit.dart';
 import '../../utils/enums.dart';
 import '../../utils/formatters.dart';
 import '../../widgets/reception/reception_assets.dart';
+import '../../widgets/staff_avatar.dart';
 import 'create_deal_screen.dart';
 import 'edit_customer_screen.dart';
 
@@ -567,7 +568,11 @@ class _ProfileSummary extends StatelessWidget {
                   width: 132,
                   child: _stackedInfoCard(
                     title: 'موظف المبيعات',
-                    avatar: _personAvatar(customer.salesEmployeeName ?? '—'),
+                    avatar: StaffAvatar(
+                      avatarUrl: customer.salesEmployeeAvatarUrl,
+                      radius: 20,
+                      backgroundColor: Colors.white,
+                    ),
                     name: customer.salesEmployeeName ?? '—',
                     subtitle: dateStr,
                   ),
@@ -577,7 +582,11 @@ class _ProfileSummary extends StatelessWidget {
                   width: 132,
                   child: _stackedInfoCard(
                     title: 'موظف الكول سنتر',
-                    avatar: _personAvatar(customer.callCenterName ?? '—'),
+                    avatar: StaffAvatar(
+                      avatarUrl: customer.callCenterAvatarUrl,
+                      radius: 20,
+                      backgroundColor: Colors.white,
+                    ),
                     name: customer.callCenterName ?? '—',
                     subtitle: dateStr,
                   ),
@@ -690,21 +699,6 @@ class _ProfileSummary extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _personAvatar(String name) {
-    return CircleAvatar(
-      radius: 20,
-      backgroundColor: Colors.white,
-      child: Text(
-        name.isNotEmpty ? name.characters.first : '؟',
-        style: GoogleFonts.cairo(
-          fontSize: 14,
-          fontWeight: FontWeight.w800,
-          color: _CustomerProfileScreenState._blue,
-        ),
       ),
     );
   }

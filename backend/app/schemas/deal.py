@@ -85,5 +85,6 @@ class DealOut(ORMModel):
     notes: str | None = None
     sales_employee_id: str
     sales_employee_name: str | None = None
+    sales_employee_avatar_url: str | None = None
     sale_date: datetime
     created_at: datetime

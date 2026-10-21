@@ -20,6 +20,7 @@ class Deal {
     this.email,
     this.notes,
     this.salesEmployeeName,
+    this.salesEmployeeAvatarUrl,
   });
 
   final String id;
@@ -40,6 +41,7 @@ class Deal {
   final String? email;
   final String? notes;
   final String? salesEmployeeName;
+  final String? salesEmployeeAvatarUrl;
 
   factory Deal.fromJson(Map<String, dynamic> json) => Deal(
         id: json['id'] as String,
@@ -60,5 +62,6 @@ class Deal {
         email: json['email'] as String?,
         notes: json['notes'] as String?,
         salesEmployeeName: json['sales_employee_name'] as String?,
+        salesEmployeeAvatarUrl: json['sales_employee_avatar_url'] as String?,
       );
 }

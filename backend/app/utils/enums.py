@@ -24,6 +24,11 @@ class BookingStatus(StrEnum):
     NO_SHOW = "no_show"
 
 
+class VisitType(StrEnum):
+    FIRST = "first"
+    FOLLOW_UP = "follow_up"
+
+
 class HowKnewCenter(StrEnum):
     EXTERNAL_ADS = "external_ads"
     SOCIAL_MEDIA = "social_media"

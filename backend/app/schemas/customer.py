@@ -119,10 +119,12 @@ class CustomerOut(ORMModel):
     gender: CustomerGender | None = None
     call_center_id: str | None = None
     call_center_name: str | None = None
+    call_center_avatar_url: str | None = None
     how_knew: HowKnewCenter | None = None
     referral_buyer_name: str | None = None
     sales_employee_id: str | None = None
     sales_employee_name: str | None = None
+    sales_employee_avatar_url: str | None = None
     notes: str | None = None
     status: CustomerStatus | None = None
     booking_id: str | None = None

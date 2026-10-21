@@ -19,6 +19,7 @@ import '../../utils/formatters.dart';
 import '../../utils/validators.dart';
 import '../../widgets/reception/reception_assets.dart';
 import '../../widgets/reception/reception_search_bar.dart';
+import '../../widgets/staff_avatar.dart';
 import '../shared/customer_profile_screen.dart';
 import 'approve_booking_screen.dart';
 import 'customer_files_screen.dart';
@@ -258,6 +259,7 @@ class _ReceptionHomeState extends State<ReceptionHome> {
       children: [
         _Header(
           userName: displayUserName(auth.user),
+          avatarUrl: auth.user?.avatarUrl,
           search: _search,
           suggestions: ReceptionSearchBar.uniqueOf([
             for (final b in all) ...[b.name, b.phone, b.governorate],
@@ -689,6 +691,7 @@ class _Sidebar extends StatelessWidget {
 class _Header extends StatelessWidget {
   const _Header({
     required this.userName,
+    this.avatarUrl,
     required this.search,
     required this.suggestions,
     required this.onSearch,
@@ -697,6 +700,7 @@ class _Header extends StatelessWidget {
   });
 
   final String userName;
+  final String? avatarUrl;
   final TextEditingController search;
   final List<String> suggestions;
   final VoidCallback onSearch;
@@ -754,9 +758,7 @@ class _Header extends StatelessWidget {
                   const SizedBox(width: 6),
                   RAssets.svg('dc_chevron', w: 12, h: 12),
                   const SizedBox(width: 8),
-                  ClipOval(
-                    child: Image.asset(RAssets.avatar, width: 44, height: 44, fit: BoxFit.cover),
-                  ),
+                  StaffAvatar(avatarUrl: avatarUrl, radius: 22),
                 ],
               ),
             ),
@@ -953,7 +955,23 @@ class _QuickCustomerCreate extends StatelessWidget {
                         ),
                         icon: const SizedBox.shrink(),
                         items: sales
-                            .map((u) => DropdownMenuItem(value: u.id, child: Text(u.fullName)))
+                            .map(
+                              (u) => DropdownMenuItem(
+                                value: u.id,
+                                child: Row(
+                                  children: [
+                                    StaffAvatar(user: u, radius: 12),
+                                    const SizedBox(width: 8),
+                                    Flexible(
+                                      child: Text(
+                                        u.fullName,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            )
                             .toList(),
                         onChanged: onSales,
                       ),
@@ -1344,11 +1362,10 @@ class _BookingsTable extends StatelessWidget {
                                     child: Row(
                                       mainAxisAlignment: MainAxisAlignment.center,
                                       children: [
-                                        const CircleAvatar(
+                                        StaffAvatar(
+                                          avatarUrl: b.callCenterAvatarUrl,
                                           radius: 14,
-                                          backgroundColor: Color(0xFFE8F0FE),
-                                          backgroundImage:
-                                              AssetImage(RAssets.avatarMale),
+                                          backgroundColor: const Color(0xFFE8F0FE),
                                         ),
                                         const SizedBox(width: 8),
                                         Flexible(

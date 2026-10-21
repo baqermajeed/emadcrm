@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../controllers/auth_controller.dart';
 import '../core/theme.dart';
+import 'staff_avatar.dart';
 
 class AppScaffold extends StatelessWidget {
   const AppScaffold({
@@ -30,7 +31,16 @@ class AppScaffold extends StatelessWidget {
         bottom: bottom,
         actions: [
           ...?actions,
-          if (user != null)
+          if (user != null) ...[
+            Padding(
+              padding: const EdgeInsets.only(left: 4, right: 4),
+              child: StaffAvatar(
+                user: user,
+                radius: 16,
+                backgroundColor: Colors.white24,
+                iconColor: Colors.white,
+              ),
+            ),
             Padding(
               padding: const EdgeInsets.only(left: 8, right: 4),
               child: Center(
@@ -40,6 +50,7 @@ class AppScaffold extends StatelessWidget {
                 ),
               ),
             ),
+          ],
           IconButton(
             tooltip: 'تسجيل الخروج',
             onPressed: () => context.read<AuthController>().logout(),

@@ -49,10 +49,14 @@ class CustomerService:
                 ids.add(d["sales_employee_id"])
             if d.get("call_center_id"):
                 ids.add(d["call_center_id"])
-        names = await self.users.name_map(list(ids))
+        profiles = await self.users.profile_map(list(ids))
         for d in docs:
-            d["sales_employee_name"] = names.get(d.get("sales_employee_id") or "")
-            d["call_center_name"] = names.get(d.get("call_center_id") or "")
+            sales = profiles.get(d.get("sales_employee_id") or "", {})
+            call = profiles.get(d.get("call_center_id") or "", {})
+            d["sales_employee_name"] = sales.get("full_name")
+            d["sales_employee_avatar_url"] = sales.get("avatar_url")
+            d["call_center_name"] = call.get("full_name")
+            d["call_center_avatar_url"] = call.get("avatar_url")
             d.setdefault("documents", [])
         return docs
 

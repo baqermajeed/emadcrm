@@ -12,7 +12,9 @@ class Booking {
     required this.callCenterId,
     this.notes,
     this.callCenterName,
+    this.callCenterAvatarUrl,
     this.customerId,
+    this.visitType,
     this.createdAt,
   });
 
@@ -26,8 +28,16 @@ class Booking {
   final String callCenterId;
   final String? notes;
   final String? callCenterName;
+  final String? callCenterAvatarUrl;
   final String? customerId;
+  final VisitType? visitType;
   final DateTime? createdAt;
+
+  /// أول زيارة إن وُجد النوع، وإلا للحجوزات القديمة: بلا ملف زبون بعد.
+  bool get isFirstVisit {
+    if (visitType != null) return visitType == VisitType.first;
+    return customerId == null;
+  }
 
   factory Booking.fromJson(Map<String, dynamic> json) => Booking(
         id: json['id'] as String,
@@ -40,7 +50,9 @@ class Booking {
         callCenterId: json['call_center_id'] as String,
         notes: json['notes'] as String?,
         callCenterName: json['call_center_name'] as String?,
+        callCenterAvatarUrl: json['call_center_avatar_url'] as String?,
         customerId: json['customer_id'] as String?,
+        visitType: VisitTypeX.fromApi(json['visit_type'] as String?),
         createdAt: json['created_at'] != null
             ? DateTime.parse(json['created_at'] as String)
             : null,

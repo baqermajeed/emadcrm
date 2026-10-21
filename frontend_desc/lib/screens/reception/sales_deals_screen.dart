@@ -19,6 +19,7 @@ import '../../utils/enums.dart';
 import '../../utils/formatters.dart';
 import '../../widgets/reception/reception_assets.dart';
 import '../../widgets/reception/reception_search_bar.dart';
+import '../../widgets/staff_avatar.dart';
 import '../shared/create_deal_screen.dart';
 
 /// صفقات البيع — matched to Arabic Sales Deals dashboard mock.
@@ -298,9 +299,9 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
     final to = end;
 
     final customers = context.watch<CustomerController>().items;
-    String? callCenterNameOf(Deal d) {
+    Customer? customerOf(Deal d) {
       for (final c in customers) {
-        if (c.id == d.customerId) return c.callCenterName;
+        if (c.id == d.customerId) return c;
       }
       return null;
     }
@@ -312,6 +313,7 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
         children: [
           _DealsHeader(
             userName: displayUserName(auth.user),
+            avatarUrl: auth.user?.avatarUrl,
             search: _search,
             suggestions: ReceptionSearchBar.uniqueOf([
               for (final d in _deals) ...[d.name, d.phone, d.id],
@@ -391,7 +393,7 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
                                 ? _DealsGrid(
                                     scrollController: _scroll,
                                     deals: pageItems,
-                                    callCenterNameOf: callCenterNameOf,
+                                    customerOf: customerOf,
                                     houseLabel: _houseLabel,
                                     complexLabel: _complexLabel,
                                     onOpen: (d) =>
@@ -431,6 +433,7 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
 class _DealsHeader extends StatelessWidget {
   const _DealsHeader({
     required this.userName,
+    this.avatarUrl,
     required this.search,
     required this.suggestions,
     required this.onSearch,
@@ -439,6 +442,7 @@ class _DealsHeader extends StatelessWidget {
   });
 
   final String userName;
+  final String? avatarUrl;
   final TextEditingController search;
   final List<String> suggestions;
   final VoidCallback onSearch;
@@ -490,14 +494,7 @@ class _DealsHeader extends StatelessWidget {
                     const SizedBox(width: 6),
                     RAssets.svg('dc_chevron', w: 12, h: 12),
                     const SizedBox(width: 8),
-                    ClipOval(
-                      child: Image.asset(
-                        RAssets.avatar,
-                        width: 44,
-                        height: 44,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
+                    StaffAvatar(avatarUrl: avatarUrl, radius: 22),
                   ],
                 ),
               ),
@@ -1047,7 +1044,7 @@ class _DealsGrid extends StatelessWidget {
   const _DealsGrid({
     required this.scrollController,
     required this.deals,
-    required this.callCenterNameOf,
+    required this.customerOf,
     required this.houseLabel,
     required this.complexLabel,
     required this.onOpen,
@@ -1058,7 +1055,7 @@ class _DealsGrid extends StatelessWidget {
 
   final ScrollController scrollController;
   final List<Deal> deals;
-  final String? Function(Deal) callCenterNameOf;
+  final Customer? Function(Deal) customerOf;
   final String Function(Deal) houseLabel;
   final String Function(Deal) complexLabel;
   final ValueChanged<Deal> onOpen;
@@ -1092,7 +1089,8 @@ class _DealsGrid extends StatelessWidget {
                       deal: d,
                       house: houseLabel(d),
                       complex: complexLabel(d),
-                      callCenterName: callCenterNameOf(d),
+                      callCenterName: customerOf(d)?.callCenterName,
+                      callCenterAvatarUrl: customerOf(d)?.callCenterAvatarUrl,
                       onOpen: () => onOpen(d),
                       onPhone: () => onPhone(d),
                       onChat: () => onChat(d),
@@ -1174,6 +1172,7 @@ class _DealCard extends StatelessWidget {
     required this.house,
     required this.complex,
     required this.callCenterName,
+    this.callCenterAvatarUrl,
     required this.onOpen,
     required this.onPhone,
     required this.onChat,
@@ -1184,6 +1183,7 @@ class _DealCard extends StatelessWidget {
   final String house;
   final String complex;
   final String? callCenterName;
+  final String? callCenterAvatarUrl;
   final VoidCallback onOpen;
   final VoidCallback onPhone;
   final VoidCallback onChat;
@@ -1359,7 +1359,7 @@ class _DealCard extends StatelessWidget {
                       child: _PersonRow(
                         label: 'موظف المبيعات',
                         name: deal.salesEmployeeName ?? '—',
-                        avatar: RAssets.avatarMale,
+                        avatarUrl: deal.salesEmployeeAvatarUrl,
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -1367,7 +1367,7 @@ class _DealCard extends StatelessWidget {
                       child: _PersonRow(
                         label: 'موظف الكول سنتر',
                         name: callCenterName ?? '—',
-                        avatar: RAssets.avatarMale,
+                        avatarUrl: callCenterAvatarUrl,
                       ),
                     ),
                   ],
@@ -1434,20 +1434,18 @@ class _PersonRow extends StatelessWidget {
   const _PersonRow({
     required this.label,
     required this.name,
-    required this.avatar,
+    this.avatarUrl,
   });
 
   final String label;
   final String name;
-  final String avatar;
+  final String? avatarUrl;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        ClipOval(
-          child: Image.asset(avatar, width: 22, height: 22, fit: BoxFit.cover),
-        ),
+        StaffAvatar(avatarUrl: avatarUrl, radius: 11),
         const SizedBox(width: 6),
         Expanded(
           child: Column(

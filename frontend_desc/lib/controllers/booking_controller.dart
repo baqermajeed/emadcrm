@@ -59,6 +59,8 @@ class BookingController extends ChangeNotifier {
   Future<bool> approve({
     required String bookingId,
     required String salesEmployeeId,
+    VisitType? visitType,
+    String? existingCustomerId,
     String? profession,
     String? address,
     HowKnewCenter? howKnew,
@@ -69,6 +71,8 @@ class BookingController extends ChangeNotifier {
       final updated = await _service.approve(
         bookingId: bookingId,
         salesEmployeeId: salesEmployeeId,
+        visitType: visitType,
+        existingCustomerId: existingCustomerId,
         profession: profession,
         address: address,
         howKnew: howKnew,

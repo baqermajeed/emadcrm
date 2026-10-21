@@ -17,6 +17,7 @@ import '../../utils/enums.dart';
 import '../../utils/formatters.dart';
 import '../../widgets/reception/reception_assets.dart';
 import '../../widgets/reception/reception_search_bar.dart';
+import '../../widgets/staff_avatar.dart';
 import '../shared/edit_customer_screen.dart';
 
 /// Customer files grid — matched to Figma «ملفات الزبائن» mock.
@@ -215,6 +216,7 @@ class _CustomerFilesScreenState extends State<CustomerFilesScreen> {
           children: [
             _FilesHeader(
               userName: userName,
+              avatarUrl: auth.user?.avatarUrl,
               search: _headerSearch,
               suggestions: ReceptionSearchBar.uniqueOf([
                 for (final c in customers.items) ...[c.name, c.phone],
@@ -326,6 +328,7 @@ class _CustomerFilesScreenState extends State<CustomerFilesScreen> {
 class _FilesHeader extends StatelessWidget {
   const _FilesHeader({
     required this.userName,
+    this.avatarUrl,
     required this.search,
     required this.suggestions,
     required this.onSearch,
@@ -335,6 +338,7 @@ class _FilesHeader extends StatelessWidget {
   });
 
   final String userName;
+  final String? avatarUrl;
   final TextEditingController search;
   final List<String> suggestions;
   final VoidCallback onSearch;
@@ -425,14 +429,7 @@ class _FilesHeader extends StatelessWidget {
                     const SizedBox(width: 6),
                     RAssets.svg('dc_chevron', w: 12, h: 12),
                     const SizedBox(width: 8),
-                    ClipOval(
-                      child: Image.asset(
-                        RAssets.avatar,
-                        width: 44,
-                        height: 44,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
+                    StaffAvatar(avatarUrl: avatarUrl, radius: 22),
                   ],
                 ),
               ),

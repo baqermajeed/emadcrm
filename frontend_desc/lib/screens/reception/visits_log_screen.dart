@@ -21,6 +21,7 @@ import '../../utils/enums.dart';
 import '../../utils/formatters.dart';
 import '../../widgets/reception/reception_assets.dart';
 import '../../widgets/reception/reception_search_bar.dart';
+import '../../widgets/staff_avatar.dart';
 
 /// سجل الزيارات — matched to Arabic Visit Log dashboard mock.
 class VisitsLogScreen extends StatefulWidget {
@@ -42,7 +43,6 @@ class _VisitsLogScreenState extends State<VisitsLogScreen> {
   List<AppUser> _callCenter = [];
   String? _salesId; // null = all
   String? _callCenterId; // null = all
-  _VisitFilterStatus? _statusFilter; // null = all
   DateTime? _fromDate;
   DateTime? _toDate;
   String _appliedSearch = '';
@@ -107,11 +107,15 @@ class _VisitsLogScreenState extends State<VisitsLogScreen> {
     return null;
   }
 
+  /// زيارة = حجز تم تأكيد حضوره فقط (ليس الحجوزات المعلقة).
+  List<Booking> _confirmedVisits(List<Booking> bookings) =>
+      bookings.where((b) => b.status == BookingStatus.approved).toList();
+
   List<Booking> _filtered(
-    List<Booking> all,
+    List<Booking> visits,
     CustomerController customers,
   ) {
-    var list = [...all];
+    var list = [...visits];
     if (_appliedSearch.isNotEmpty) {
       final q = _appliedSearch.toLowerCase();
       list = list
@@ -126,15 +130,6 @@ class _VisitsLogScreenState extends State<VisitsLogScreen> {
     }
     if (_salesId != null) {
       list = list.where((b) => _salesIdForBooking(b, customers) == _salesId).toList();
-    }
-    if (_statusFilter != null) {
-      list = list.where((b) {
-        return switch (_statusFilter!) {
-          _VisitFilterStatus.attended => b.status == BookingStatus.approved,
-          _VisitFilterStatus.upcoming => _isUpcomingPending(b),
-          _VisitFilterStatus.missed => _isMissedOrCancelled(b),
-        };
-      }).toList();
     }
     if (_fromDate != null) {
       final from = DateTime(_fromDate!.year, _fromDate!.month, _fromDate!.day);
@@ -173,7 +168,6 @@ class _VisitsLogScreenState extends State<VisitsLogScreen> {
     setState(() {
       _salesId = null;
       _callCenterId = null;
-      _statusFilter = null;
       _fromDate = null;
       _toDate = null;
       _search.clear();
@@ -186,14 +180,15 @@ class _VisitsLogScreenState extends State<VisitsLogScreen> {
     final auth = context.watch<AuthController>();
     final bookings = context.watch<BookingController>();
     final customers = context.watch<CustomerController>();
-    final all = bookings.items;
-    final filtered = _filtered(all, customers);
+    final allBookings = bookings.items;
+    final visits = _confirmedVisits(allBookings);
+    final filtered = _filtered(visits, customers);
 
-    final total = all.length;
-    final todayCount = all.where(_isTodayVisit).length;
-    final attended = all.where((b) => b.status == BookingStatus.approved).length;
-    final upcoming = all.where(_isUpcomingPending).length;
-    final missed = all.where(_isMissedOrCancelled).length;
+    final total = visits.length;
+    final todayCount = visits.where(_isTodayVisit).length;
+    final attended = visits.length;
+    final awaitingConfirm = allBookings.where(_isUpcomingPending).length;
+    final missed = allBookings.where(_isMissedOrCancelled).length;
 
     return ColoredBox(
       color: const Color(0xFFF4F7FE),
@@ -202,9 +197,10 @@ class _VisitsLogScreenState extends State<VisitsLogScreen> {
         children: [
           _VisitsHeader(
             userName: displayUserName(auth.user),
+            avatarUrl: auth.user?.avatarUrl,
             search: _search,
             suggestions: ReceptionSearchBar.uniqueOf([
-              for (final b in all) ...[b.name, b.phone],
+              for (final b in visits) ...[b.name, b.phone],
             ]),
             onSearch: () => setState(() => _appliedSearch = _search.text.trim()),
             onQueryChanged: (q) => setState(() {
@@ -222,9 +218,9 @@ class _VisitsLogScreenState extends State<VisitsLogScreen> {
                     total: total,
                     today: todayCount,
                     attended: attended,
-                    upcoming: upcoming,
+                    awaitingConfirm: awaitingConfirm,
                     missed: missed,
-                    loading: bookings.loading && all.isEmpty,
+                    loading: bookings.loading && allBookings.isEmpty,
                   ),
                   const SizedBox(height: 8),
                   _FiltersBar(
@@ -232,13 +228,11 @@ class _VisitsLogScreenState extends State<VisitsLogScreen> {
                     callCenter: _callCenter,
                     salesId: _salesId,
                     callCenterId: _callCenterId,
-                    status: _statusFilter,
                     fromDate: _fromDate,
                     toDate: _toDate,
                     resultCount: filtered.length,
                     onSales: (v) => setState(() => _salesId = v),
                     onCallCenter: (v) => setState(() => _callCenterId = v),
-                    onStatus: (v) => setState(() => _statusFilter = v),
                     onPickFrom: () => _pickDate(from: true),
                     onPickTo: () => _pickDate(from: false),
                     onReset: _resetFilters,
@@ -247,7 +241,7 @@ class _VisitsLogScreenState extends State<VisitsLogScreen> {
                   Expanded(
                     child: _VisitsTable(
                       rows: filtered,
-                      loading: bookings.loading && all.isEmpty,
+                      loading: bookings.loading && allBookings.isEmpty,
                       onOpen: (b) {
                         final id = b.customerId;
                         if (id != null) widget.onOpenCustomer?.call(id);
@@ -264,13 +258,12 @@ class _VisitsLogScreenState extends State<VisitsLogScreen> {
   }
 }
 
-enum _VisitFilterStatus { attended, upcoming, missed }
-
 // ───────────────────────── Header ─────────────────────────
 
 class _VisitsHeader extends StatelessWidget {
   const _VisitsHeader({
     required this.userName,
+    this.avatarUrl,
     required this.search,
     required this.suggestions,
     required this.onSearch,
@@ -279,6 +272,7 @@ class _VisitsHeader extends StatelessWidget {
   });
 
   final String userName;
+  final String? avatarUrl;
   final TextEditingController search;
   final List<String> suggestions;
   final VoidCallback onSearch;
@@ -330,9 +324,7 @@ class _VisitsHeader extends StatelessWidget {
                     const SizedBox(width: 6),
                     RAssets.svg('dc_chevron', w: 12, h: 12),
                     const SizedBox(width: 8),
-                    ClipOval(
-                      child: Image.asset(RAssets.avatar, width: 44, height: 44, fit: BoxFit.cover),
-                    ),
+                    StaffAvatar(avatarUrl: avatarUrl, radius: 22),
                   ],
                 ),
               ),
@@ -405,7 +397,7 @@ class _StatsRow extends StatelessWidget {
     required this.total,
     required this.today,
     required this.attended,
-    required this.upcoming,
+    required this.awaitingConfirm,
     required this.missed,
     required this.loading,
   });
@@ -413,7 +405,7 @@ class _StatsRow extends StatelessWidget {
   final int total;
   final int today;
   final int attended;
-  final int upcoming;
+  final int awaitingConfirm;
   final int missed;
   final bool loading;
 
@@ -425,7 +417,7 @@ class _StatsRow extends StatelessWidget {
         children: [
           Expanded(
             child: _StatCard(
-              label: 'إجمالي الحجوزات',
+              label: 'إجمالي الزيارات',
               value: loading ? '—' : '$total',
               iconAsset: RAssets.statVisits,
               accent: const Color(0xFF1E6FD9),
@@ -435,7 +427,7 @@ class _StatsRow extends StatelessWidget {
           const SizedBox(width: 16),
           Expanded(
             child: _StatCard(
-              label: 'مواعيد اليوم',
+              label: 'زيارات اليوم',
               value: loading ? '—' : '$today',
               iconAsset: RAssets.calendarStat,
               accent: const Color(0xFF0891B2),
@@ -445,7 +437,7 @@ class _StatsRow extends StatelessWidget {
           const SizedBox(width: 16),
           Expanded(
             child: _StatCard(
-              label: 'الحاضرون',
+              label: 'الحضور المؤكد',
               value: loading ? '—' : '$attended',
               iconAsset: RAssets.statStatus,
               accent: const Color(0xFF059669),
@@ -455,8 +447,8 @@ class _StatsRow extends StatelessWidget {
           const SizedBox(width: 16),
           Expanded(
             child: _StatCard(
-              label: 'غير الحاضرين (لم يحن الموعد)',
-              value: loading ? '—' : '$upcoming',
+              label: 'حجوزات بانتظار التأكيد',
+              value: loading ? '—' : '$awaitingConfirm',
               iconAsset: RAssets.statLastVisit,
               accent: const Color(0xFFEA580C),
               iconBg: const Color(0xFFFFEDD5),
@@ -562,13 +554,11 @@ class _FiltersBar extends StatelessWidget {
     required this.callCenter,
     required this.salesId,
     required this.callCenterId,
-    required this.status,
     required this.fromDate,
     required this.toDate,
     required this.resultCount,
     required this.onSales,
     required this.onCallCenter,
-    required this.onStatus,
     required this.onPickFrom,
     required this.onPickTo,
     required this.onReset,
@@ -578,13 +568,11 @@ class _FiltersBar extends StatelessWidget {
   final List<AppUser> callCenter;
   final String? salesId;
   final String? callCenterId;
-  final _VisitFilterStatus? status;
   final DateTime? fromDate;
   final DateTime? toDate;
   final int resultCount;
   final ValueChanged<String?> onSales;
   final ValueChanged<String?> onCallCenter;
-  final ValueChanged<_VisitFilterStatus?> onStatus;
   final VoidCallback onPickFrom;
   final VoidCallback onPickTo;
   final VoidCallback onReset;
@@ -684,37 +672,6 @@ class _FiltersBar extends StatelessWidget {
                           ),
                         ],
                         onChanged: onCallCenter,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  flex: 2,
-                  child: _filterField(
-                    label: 'حالة الزيارة',
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<_VisitFilterStatus?>(
-                        value: status,
-                        isExpanded: true,
-                        hint: Text('كل الحالات', style: _hint()),
-                        icon: const Icon(Icons.keyboard_arrow_down_rounded, color: _navy),
-                        items: [
-                          DropdownMenuItem(value: null, child: Text('كل الحالات', style: _item())),
-                          DropdownMenuItem(
-                            value: _VisitFilterStatus.attended,
-                            child: Text('حاضر', style: _item()),
-                          ),
-                          DropdownMenuItem(
-                            value: _VisitFilterStatus.upcoming,
-                            child: Text('لم يحن الموعد', style: _item()),
-                          ),
-                          DropdownMenuItem(
-                            value: _VisitFilterStatus.missed,
-                            child: Text('ملغاة / تجاوز الموعد', style: _item()),
-                          ),
-                        ],
-                        onChanged: onStatus,
                       ),
                     ),
                   ),
@@ -1102,7 +1059,7 @@ class _VisitsTable extends StatelessWidget {
     );
     final date = DateFormat('dd/MM/yyyy').format(b.visitDate.toLocal());
     final time = DateFormat('hh:mm a', 'ar').format(b.visitDate.toLocal());
-    final firstVisit = b.customerId == null;
+    final firstVisit = b.isFirstVisit;
 
     return Material(
       color: alt ? const Color(0xFFF7FBFC) : Colors.white,
@@ -1145,10 +1102,9 @@ class _VisitsTable extends StatelessWidget {
               2,
               Row(
                 children: [
-                  const CircleAvatar(
+                  const StaffAvatar(
                     radius: 15,
                     backgroundColor: Color(0xFFE8F0FE),
-                    backgroundImage: AssetImage(RAssets.avatarMale),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
@@ -1200,10 +1156,10 @@ class _VisitsTable extends StatelessWidget {
               2,
               Row(
                 children: [
-                  const CircleAvatar(
+                  StaffAvatar(
+                    avatarUrl: b.callCenterAvatarUrl,
                     radius: 15,
-                    backgroundColor: Color(0xFFE8F0FE),
-                    backgroundImage: AssetImage(RAssets.avatarMale),
+                    backgroundColor: const Color(0xFFE8F0FE),
                   ),
                   const SizedBox(width: 8),
                   Expanded(

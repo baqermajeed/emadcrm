@@ -17,9 +17,11 @@ class ReservationService:
 
     async def _enrich(self, docs: list[dict]) -> list[dict]:
         ids = list({d.get("sales_employee_id") for d in docs if d.get("sales_employee_id")})
-        names = await self.users.name_map(ids)
+        profiles = await self.users.profile_map(ids)
         for d in docs:
-            d["sales_employee_name"] = names.get(d.get("sales_employee_id") or "")
+            profile = profiles.get(d.get("sales_employee_id") or "", {})
+            d["sales_employee_name"] = profile.get("full_name")
+            d["sales_employee_avatar_url"] = profile.get("avatar_url")
         return docs
 
     async def create(self, data: ReservationCreate, actor: dict) -> dict:

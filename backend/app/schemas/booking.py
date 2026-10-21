@@ -3,7 +3,7 @@ from datetime import datetime
 from pydantic import Field, field_validator
 
 from app.schemas.common import ORMModel
-from app.utils.enums import BookingSource, BookingStatus, HowKnewCenter
+from app.utils.enums import BookingSource, BookingStatus, HowKnewCenter, VisitType
 from app.utils.validators import (
     validate_iraq_phone,
     validate_optional_iraq_phone,
@@ -53,6 +53,8 @@ class BookingUpdate(ORMModel):
 
 class BookingApprove(ORMModel):
     sales_employee_id: str
+    visit_type: VisitType | None = None
+    existing_customer_id: str | None = None
     profession: str | None = Field(default=None, max_length=120)
     address: str | None = Field(default=None, max_length=250)
     how_knew: HowKnewCenter | None = None
@@ -76,7 +78,9 @@ class BookingOut(ORMModel):
     status: BookingStatus
     call_center_id: str
     call_center_name: str | None = None
+    call_center_avatar_url: str | None = None
     customer_id: str | None = None
+    visit_type: VisitType | None = None
     approved_by: str | None = None
     approved_at: datetime | None = None
     created_at: datetime

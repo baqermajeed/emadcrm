@@ -14,6 +14,7 @@ import '../../models/user.dart';
 import '../../services/user_service.dart';
 import '../../utils/enums.dart';
 import '../../widgets/reception/reception_assets.dart';
+import '../../widgets/staff_avatar.dart';
 
 enum ApproveDialogResult { cancelled, confirmed, confirmedAndOpen, viewProfile }
 
@@ -70,6 +71,7 @@ class _ApproveBookingDialogState extends State<ApproveBookingDialog> {
 
   late List<AppUser> _sales;
   String? _salesId;
+  VisitType? _visitType;
   DateTime _attendAt = DateTime.now();
   bool _loadingUsers = true;
   bool _saving = false;
@@ -117,7 +119,13 @@ class _ApproveBookingDialogState extends State<ApproveBookingDialog> {
         }
       }
     }
-    if (mounted) setState(() => _existingCustomer = found);
+    if (mounted) {
+      setState(() {
+        _existingCustomer = found;
+        // ملف موجود → يجب اختيار النوع؛ ملف جديد → أول زيارة تلقائياً
+        _visitType = found != null ? null : VisitType.first;
+      });
+    }
   }
 
   Future<void> _loadSales() async {
@@ -199,15 +207,25 @@ class _ApproveBookingDialogState extends State<ApproveBookingDialog> {
       );
       return;
     }
+    final hasFile = _existingCustomer != null || widget.booking.customerId != null;
+    if (hasFile && _visitType == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('اختر نوع الزيارة')),
+      );
+      return;
+    }
     setState(() => _saving = true);
     final stamp = DateFormat('yyyy/MM/dd HH:mm').format(_attendAt);
     final noteParts = <String>[
       if (_notes.text.trim().isNotEmpty) _notes.text.trim(),
       'وقت الحضور الفعلي: $stamp',
     ];
+    final existingId = _existingCustomer?.id ?? widget.booking.customerId;
     final ok = await context.read<BookingController>().approve(
           bookingId: widget.booking.id,
           salesEmployeeId: _salesId!,
+          visitType: hasFile ? _visitType : VisitType.first,
+          existingCustomerId: hasFile ? existingId : null,
           notes: noteParts.join('\n'),
         );
     setState(() => _saving = false);
@@ -303,6 +321,8 @@ class _ApproveBookingDialogState extends State<ApproveBookingDialog> {
                                 ],
                               ),
                             ),
+                            const SizedBox(height: 16),
+                            _visitTypePanel(hasFile: hasFile),
                             const SizedBox(height: 16),
                             _visitNotesPanel(),
                           ],
@@ -861,18 +881,7 @@ class _ApproveBookingDialogState extends State<ApproveBookingDialog> {
                           value: u.id,
                           child: Row(
                             children: [
-                              CircleAvatar(
-                                radius: 12,
-                                backgroundColor: ReceptionTokens.plusBg,
-                                child: Text(
-                                  u.fullName.isNotEmpty ? u.fullName.substring(0, 1) : '?',
-                                  style: const TextStyle(
-                                    color: ReceptionTokens.navy,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 11,
-                                  ),
-                                ),
-                              ),
+                              StaffAvatar(user: u, radius: 12),
                               const SizedBox(width: 8),
                               Flexible(
                                 child: Text(
@@ -1050,10 +1059,121 @@ class _ApproveBookingDialogState extends State<ApproveBookingDialog> {
     );
   }
 
+  Widget _visitTypePanel({required bool hasFile}) {
+    return _panelShell(
+      header: _panelHeader(
+        icon: Icons.route_rounded,
+        title: 'نوع الزيارة',
+      ),
+      body: hasFile
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'حدد نوع الزيارة لأن الزبون لديه ملف مسبقاً',
+                  style: TextStyle(
+                    color: ReceptionTokens.navy.withValues(alpha: 0.6),
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _visitTypeChoice(
+                        type: VisitType.first,
+                        selected: _visitType == VisitType.first,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _visitTypeChoice(
+                        type: VisitType.followUp,
+                        selected: _visitType == VisitType.followUp,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            )
+          : Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFDBEAFE),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFF93C5FD)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.info_outline_rounded, color: Color(0xFF1D4ED8), size: 20),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'سيتم تسجيلها كـ «زيارة أولى» تلقائياً لأن الملف يُنشأ من هذا الحجز',
+                      style: TextStyle(
+                        color: Color(0xFF1E3A8A),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+    );
+  }
+
+  Widget _visitTypeChoice({required VisitType type, required bool selected}) {
+    final isFirst = type == VisitType.first;
+    final color = isFirst ? const Color(0xFF1D4ED8) : const Color(0xFF7C3AED);
+    final bg = selected
+        ? (isFirst ? const Color(0xFFDBEAFE) : const Color(0xFFF3E8FF))
+        : Colors.white;
+    return Material(
+      color: bg,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: _saving ? null : () => setState(() => _visitType = type),
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: selected ? color : ReceptionTokens.fieldBorder,
+              width: selected ? 1.6 : 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                selected ? Icons.radio_button_checked : Icons.radio_button_off,
+                color: selected ? color : ReceptionTokens.navy.withValues(alpha: 0.35),
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  type.label,
+                  style: TextStyle(
+                    color: selected ? color : ReceptionTokens.navy,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _footer({required bool hasFile}) {
     // ملف سابق → فقط «تأكيد الحضور وإنشاء الزيارة»
     // بدون ملف → فقط «تسجيل الحضور وفتح الملف»
-    final confirmEnabled = hasFile && !_saving;
+    final confirmEnabled = hasFile && !_saving && _visitType != null;
     final createAndOpenEnabled = !hasFile && !_saving;
 
     return Container(

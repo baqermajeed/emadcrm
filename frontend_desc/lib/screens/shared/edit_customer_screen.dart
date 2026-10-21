@@ -13,6 +13,7 @@ import '../../services/user_service.dart';
 import '../../utils/enums.dart';
 import '../../utils/validators.dart';
 import '../../widgets/reception/reception_assets.dart';
+import '../../widgets/staff_avatar.dart';
 
 class EditCustomerScreen extends StatefulWidget {
   const EditCustomerScreen({super.key, this.customer});
@@ -390,7 +391,19 @@ class _EditCustomerScreenState extends State<EditCustomerScreen> {
                                         .map(
                                           (u) => DropdownMenuItem(
                                             value: u.id,
-                                            child: Text(u.fullName, style: _fieldStyle()),
+                                            child: Row(
+                                              children: [
+                                                StaffAvatar(user: u, radius: 12),
+                                                const SizedBox(width: 8),
+                                                Flexible(
+                                                  child: Text(
+                                                    u.fullName,
+                                                    style: _fieldStyle(),
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
                                           ),
                                         )
                                         .toList(),

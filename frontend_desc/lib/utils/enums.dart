@@ -4,6 +4,8 @@ enum BookingSource { whatsapp, instagram, facebook, tiktok, phone, externalAd }
 
 enum BookingStatus { pending, approved, cancelled, noShow }
 
+enum VisitType { first, followUp }
+
 enum HowKnewCenter { externalAds, socialMedia, buyerReferral, passingBy }
 
 enum CustomerGender { male, female }
@@ -92,6 +94,27 @@ extension BookingStatusX on BookingStatus {
         'no_show' => BookingStatus.noShow,
         _ => BookingStatus.pending,
       };
+}
+
+extension VisitTypeX on VisitType {
+  String get api => switch (this) {
+        VisitType.first => 'first',
+        VisitType.followUp => 'follow_up',
+      };
+
+  String get label => switch (this) {
+        VisitType.first => 'زيارة أولى',
+        VisitType.followUp => 'زيارة متابعة',
+      };
+
+  static VisitType? fromApi(String? value) {
+    if (value == null) return null;
+    return switch (value) {
+      'first' => VisitType.first,
+      'follow_up' => VisitType.followUp,
+      _ => null,
+    };
+  }
 }
 
 extension HowKnewX on HowKnewCenter {
