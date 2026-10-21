@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.emad" "\0"
-            VALUE "FileDescription", "emad_crm" "\0"
+            VALUE "FileDescription", "Emad CRM" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "emad_crm" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 com.emad. All rights reserved." "\0"
             VALUE "OriginalFilename", "emad_crm.exe" "\0"
-            VALUE "ProductName", "emad_crm" "\0"
+            VALUE "ProductName", "Emad CRM" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

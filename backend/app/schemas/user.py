@@ -1,3 +1,4 @@
+import re
 from datetime import datetime
 
 from pydantic import Field, field_validator
@@ -10,6 +11,19 @@ from app.utils.validators import (
     validate_person_name,
 )
 
+_USERNAME_RE = re.compile(r"^[a-zA-Z0-9._-]+$")
+
+
+def _validate_username(value: str) -> str:
+    cleaned = value.strip()
+    if len(cleaned) < 3:
+        raise ValueError("اسم الدخول يجب أن يكون ٣ أحرف على الأقل")
+    if len(cleaned) > 64:
+        raise ValueError("اسم الدخول طويل جداً")
+    if not _USERNAME_RE.fullmatch(cleaned):
+        raise ValueError("اسم الدخول يجب أن يكون أحرف إنجليزية وأرقام فقط")
+    return cleaned
+
 
 class UserCreate(ORMModel):
     username: str = Field(min_length=3, max_length=64)
@@ -18,6 +32,11 @@ class UserCreate(ORMModel):
     role: UserRole
     phone: str | None = Field(default=None, max_length=11)
     is_active: bool = True
+
+    @field_validator("username")
+    @classmethod
+    def _username(cls, v: str) -> str:
+        return _validate_username(v)
 
     @field_validator("full_name")
     @classmethod
@@ -31,11 +50,20 @@ class UserCreate(ORMModel):
 
 
 class UserUpdate(ORMModel):
+    username: str | None = Field(default=None, min_length=3, max_length=64)
     full_name: str | None = Field(default=None, min_length=2, max_length=120)
     phone: str | None = Field(default=None, max_length=11)
     role: UserRole | None = None
     password: str | None = Field(default=None, min_length=4, max_length=128)
     is_active: bool | None = None
+    clear_avatar: bool | None = None
+
+    @field_validator("username")
+    @classmethod
+    def _username(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        return _validate_username(v)
 
     @field_validator("full_name")
     @classmethod
@@ -54,5 +82,6 @@ class UserOut(ORMModel):
     full_name: str
     role: UserRole
     phone: str | None = None
+    avatar_url: str | None = None
     is_active: bool
     created_at: datetime

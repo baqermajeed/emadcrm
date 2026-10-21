@@ -1,11 +1,11 @@
 {
-    "name": "emad_crm",
-    "short_name": "emad_crm",
+    "name": "Emad CRM",
+    "short_name": "Emad CRM",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#000000",
+    "theme_color": "#000000",
+    "description": "Emad CRM",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

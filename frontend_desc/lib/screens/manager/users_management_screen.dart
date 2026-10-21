@@ -1,5 +1,9 @@
+import 'dart:typed_data';
+
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
@@ -277,20 +281,7 @@ class _UserCard extends StatelessWidget {
           ),
           child: Row(
             children: [
-              CircleAvatar(
-                radius: 24,
-                backgroundColor: ReceptionTokens.plusBg,
-                child: Text(
-                  user.fullName.trim().isNotEmpty
-                      ? user.fullName.trim().substring(0, 1)
-                      : '?',
-                  style: GoogleFonts.cairo(
-                    fontWeight: FontWeight.w800,
-                    color: ReceptionTokens.navy,
-                    fontSize: 18,
-                  ),
-                ),
-              ),
+              _UserAvatar(user: user, radius: 24),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -371,6 +362,36 @@ class _UserCard extends StatelessWidget {
   }
 }
 
+class _UserAvatar extends StatelessWidget {
+  const _UserAvatar({required this.user, this.radius = 24});
+
+  final AppUser user;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) {
+    final url = user.avatarNetworkUrl;
+    final initial = user.fullName.trim().isNotEmpty
+        ? user.fullName.trim().substring(0, 1)
+        : '?';
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: ReceptionTokens.plusBg,
+      backgroundImage: url != null ? CachedNetworkImageProvider(url) : null,
+      child: url == null
+          ? Text(
+              initial,
+              style: GoogleFonts.cairo(
+                fontWeight: FontWeight.w800,
+                color: ReceptionTokens.navy,
+                fontSize: radius * 0.75,
+              ),
+            )
+          : null,
+    );
+  }
+}
+
 class _UserEditorDialog extends StatefulWidget {
   const _UserEditorDialog({this.user});
 
@@ -393,6 +414,11 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
   bool _saving = false;
   bool _obscure = true;
 
+  Uint8List? _pickedBytes;
+  String? _pickedPath;
+  String? _pickedName;
+  bool _removeAvatar = false;
+
   @override
   void initState() {
     super.initState();
@@ -414,22 +440,53 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
     super.dispose();
   }
 
+  Future<void> _pickPhoto() async {
+    final file = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 85,
+      maxWidth: 1200,
+    );
+    if (file == null || !mounted) return;
+    final bytes = await file.readAsBytes();
+    if (!mounted) return;
+    setState(() {
+      _pickedBytes = bytes;
+      _pickedPath = file.path;
+      _pickedName = file.name;
+      _removeAvatar = false;
+    });
+  }
+
+  void _clearPhoto() {
+    setState(() {
+      _pickedBytes = null;
+      _pickedPath = null;
+      _pickedName = null;
+      if (widget.user?.avatarUrl != null) {
+        _removeAvatar = true;
+      }
+    });
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
     final svc = UserService(context.read<ApiClient>());
     try {
+      late AppUser saved;
       if (widget.isEditing) {
-        await svc.update(
+        saved = await svc.update(
           widget.user!.id,
+          username: _username.text,
           fullName: _fullName.text,
           phone: _phone.text,
           role: _role,
           password: _password.text.trim().isEmpty ? null : _password.text,
           isActive: _isActive,
+          clearAvatar: _removeAvatar && _pickedPath == null,
         );
       } else {
-        await svc.create(
+        saved = await svc.create(
           username: _username.text,
           password: _password.text,
           fullName: _fullName.text,
@@ -438,6 +495,15 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
           isActive: _isActive,
         );
       }
+
+      if (_pickedPath != null && _pickedName != null) {
+        saved = await svc.uploadAvatar(
+          saved.id,
+          _pickedPath!,
+          _pickedName!,
+        );
+      }
+
       if (!mounted) return;
       Navigator.pop(context, true);
     } on ApiException catch (e) {
@@ -453,6 +519,70 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
         const SnackBar(content: Text('فشلت العملية')),
       );
     }
+  }
+
+  Widget _buildPhotoPicker() {
+    final existingUrl =
+        (!_removeAvatar && _pickedBytes == null) ? widget.user?.avatarNetworkUrl : null;
+    final hasPhoto = _pickedBytes != null || existingUrl != null;
+
+    return Column(
+      children: [
+        Stack(
+          alignment: Alignment.bottomRight,
+          children: [
+            CircleAvatar(
+              radius: 46,
+              backgroundColor: ReceptionTokens.plusBg,
+              backgroundImage: _pickedBytes != null
+                  ? MemoryImage(_pickedBytes!)
+                  : existingUrl != null
+                      ? CachedNetworkImageProvider(existingUrl)
+                      : null,
+              child: !hasPhoto
+                  ? const Icon(
+                      Icons.person_rounded,
+                      size: 44,
+                      color: ReceptionTokens.navy,
+                    )
+                  : null,
+            ),
+            Material(
+              color: ReceptionTokens.confirmBlue,
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: _saving ? null : _pickPhoto,
+                child: const Padding(
+                  padding: EdgeInsets.all(8),
+                  child: Icon(Icons.camera_alt_rounded, size: 18, color: Colors.white),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          hasPhoto ? 'تغيير صورة الموظف' : 'إضافة صورة الموظف',
+          style: GoogleFonts.cairo(
+            fontWeight: FontWeight.w700,
+            fontSize: 13,
+            color: ReceptionTokens.navy.withValues(alpha: 0.7),
+          ),
+        ),
+        if (hasPhoto)
+          TextButton(
+            onPressed: _saving ? null : _clearPhoto,
+            child: Text(
+              'إزالة الصورة',
+              style: GoogleFonts.cairo(
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFFB91C1C),
+              ),
+            ),
+          ),
+      ],
+    );
   }
 
   @override
@@ -496,6 +626,8 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 10),
+                  _buildPhotoPicker(),
                   const SizedBox(height: 14),
                   TextFormField(
                     controller: _fullName,
@@ -509,7 +641,6 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: _username,
-                    enabled: !widget.isEditing,
                     decoration: const InputDecoration(
                       labelText: 'اسم الدخول',
                       prefixIcon: Icon(Icons.alternate_email_rounded),

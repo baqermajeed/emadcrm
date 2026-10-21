@@ -42,13 +42,16 @@ class UserService {
 
   Future<AppUser> update(
     String id, {
+    String? username,
     String? fullName,
     String? phone,
     UserRole? role,
     String? password,
     bool? isActive,
+    bool clearAvatar = false,
   }) async {
     final body = <String, dynamic>{};
+    if (username != null) body['username'] = username.trim();
     if (fullName != null) body['full_name'] = fullName.trim();
     if (phone != null) {
       final p = phone.trim();
@@ -57,8 +60,19 @@ class UserService {
     if (role != null) body['role'] = role.api;
     if (password != null && password.isNotEmpty) body['password'] = password;
     if (isActive != null) body['is_active'] = isActive;
+    if (clearAvatar) body['clear_avatar'] = true;
 
     final data = await _api.patch('/api/users/$id', body: body) as Map<String, dynamic>;
+    return AppUser.fromJson(data);
+  }
+
+  Future<AppUser> uploadAvatar(String id, String filePath, String filename) async {
+    final data = await _api.multipart(
+      '/api/users/$id/avatar',
+      field: 'file',
+      filePath: filePath,
+      filename: filename,
+    ) as Map<String, dynamic>;
     return AppUser.fromJson(data);
   }
 }

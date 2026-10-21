@@ -1,3 +1,4 @@
+import '../core/constants.dart';
 import '../utils/enums.dart';
 
 class AppUser {
@@ -7,6 +8,7 @@ class AppUser {
     required this.fullName,
     required this.role,
     this.phone,
+    this.avatarUrl,
     this.isActive = true,
   });
 
@@ -15,7 +17,17 @@ class AppUser {
   final String fullName;
   final UserRole role;
   final String? phone;
+  final String? avatarUrl;
   final bool isActive;
+
+  /// Absolute URL for network image, or null.
+  String? get avatarNetworkUrl {
+    final url = avatarUrl?.trim();
+    if (url == null || url.isEmpty) return null;
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    final base = AppConstants.apiBaseUrl.replaceAll(RegExp(r'/$'), '');
+    return '$base$url';
+  }
 
   factory AppUser.fromJson(Map<String, dynamic> json) => AppUser(
         id: json['id'] as String,
@@ -23,6 +35,7 @@ class AppUser {
         fullName: json['full_name'] as String,
         role: UserRoleX.fromApi(json['role'] as String),
         phone: json['phone'] as String?,
+        avatarUrl: json['avatar_url'] as String?,
         isActive: json['is_active'] as bool? ?? true,
       );
 
@@ -32,6 +45,7 @@ class AppUser {
         'full_name': fullName,
         'role': role.api,
         'phone': phone,
+        'avatar_url': avatarUrl,
         'is_active': isActive,
       };
 }

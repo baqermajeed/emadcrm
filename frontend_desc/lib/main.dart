@@ -51,7 +51,7 @@ class EmadCrmApp extends StatelessWidget {
         ),
       ],
       child: MaterialApp(
-        title: 'عماد CRM',
+        title: 'Emad CRM',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light(),
         locale: const Locale('ar'),

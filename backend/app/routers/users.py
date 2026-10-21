@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 
 from app.dependencies import CurrentUser, Database, require_roles
 from app.schemas.user import UserCreate, UserOut, UserUpdate
@@ -48,7 +48,20 @@ async def get_user(user_id: str, db: Database, _: ManagerDep):
 
 @router.patch("/{user_id}", response_model=UserOut)
 async def update_user(user_id: str, body: UserUpdate, db: Database, _: ManagerDep):
-    user = await UserService(db).update(user_id, body)
+    try:
+        user = await UserService(db).update(user_id, body)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return user
+
+
+@router.post("/{user_id}/avatar", response_model=UserOut)
+async def upload_user_avatar(
+    user_id: str,
+    db: Database,
+    _: ManagerDep,
+    file: UploadFile = File(...),
+):
+    return await UserService(db).upload_avatar(user_id, file)
