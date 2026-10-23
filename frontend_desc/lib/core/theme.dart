@@ -25,6 +25,16 @@ class AppTheme {
     );
 
     return base.copyWith(
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: _OptimisticPageTransitionsBuilder(),
+          TargetPlatform.iOS: _OptimisticPageTransitionsBuilder(),
+          TargetPlatform.macOS: _OptimisticPageTransitionsBuilder(),
+          TargetPlatform.windows: _OptimisticPageTransitionsBuilder(),
+          TargetPlatform.linux: _OptimisticPageTransitionsBuilder(),
+          TargetPlatform.fuchsia: _OptimisticPageTransitionsBuilder(),
+        },
+      ),
       textTheme: AppFonts.textTheme(base.textTheme),
       appBarTheme: AppBarTheme(
         backgroundColor: primary,
@@ -72,6 +82,29 @@ class AppTheme {
         backgroundColor: accent,
         foregroundColor: Colors.white,
       ),
+    );
+  }
+}
+
+class _OptimisticPageTransitionsBuilder extends PageTransitionsBuilder {
+  const _OptimisticPageTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    final fade = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
+    final slide = Tween<Offset>(
+      begin: const Offset(0.02, 0),
+      end: Offset.zero,
+    ).animate(fade);
+    return FadeTransition(
+      opacity: fade,
+      child: SlideTransition(position: slide, child: child),
     );
   }
 }

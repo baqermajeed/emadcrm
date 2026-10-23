@@ -34,7 +34,7 @@ Future<ApproveDialogOutcome?> showApproveBookingDialog(
     barrierDismissible: true,
     barrierLabel: 'إغلاق',
     barrierColor: Colors.black.withValues(alpha: 0.55),
-    transitionDuration: const Duration(milliseconds: 220),
+    transitionDuration: const Duration(milliseconds: 180),
     pageBuilder: (ctx, anim, _) => ApproveBookingDialog(
       booking: booking,
       initialSales: sales,
@@ -43,9 +43,13 @@ Future<ApproveDialogOutcome?> showApproveBookingDialog(
       final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic);
       return FadeTransition(
         opacity: curved,
-        child: ScaleTransition(
-          scale: Tween<double>(begin: 0.96, end: 1).animate(curved),
-          child: child,
+        child: SlideTransition(
+          position: Tween<Offset>(begin: const Offset(0, 0.02), end: Offset.zero)
+              .animate(curved),
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.985, end: 1).animate(curved),
+            child: child,
+          ),
         ),
       );
     },

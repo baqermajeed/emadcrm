@@ -404,7 +404,28 @@ class _ReceptionHomeState extends State<ReceptionHome> {
         body: Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(child: _mainContent(auth, bookings)),
+            Expanded(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 190),
+                reverseDuration: const Duration(milliseconds: 140),
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                transitionBuilder: (child, animation) {
+                  final slide = Tween<Offset>(
+                    begin: const Offset(0.012, 0),
+                    end: Offset.zero,
+                  ).animate(animation);
+                  return FadeTransition(
+                    opacity: animation,
+                    child: SlideTransition(position: slide, child: child),
+                  );
+                },
+                child: KeyedSubtree(
+                  key: ValueKey('$_nav:${_profileCustomerId ?? ''}'),
+                  child: _mainContent(auth, bookings),
+                ),
+              ),
+            ),
             _Sidebar(
               selected: _nav,
               onSelect: _onSidebarSelect,
@@ -1339,8 +1360,8 @@ class _BookingsTable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final headerH = compact ? 46.0 : 62.0;
-    final rowVPad = compact ? 4.0 : 8.0;
-    final rowGap = compact ? 1.0 : 3.0;
+    final rowVPad = compact ? 2.0 : 5.0;
+    final rowGap = compact ? 0.5 : 1.5;
     final avatarR = compact ? 11.0 : 14.0;
 
     return Column(
@@ -1495,7 +1516,7 @@ class _BookingsTable extends StatelessWidget {
                                         ),
                                       ),
                                       const SizedBox(width: 6),
-                                      RAssets.source(b.source.api, size: 28),
+                                      RAssets.source(b.source.api, size: 24),
                                     ],
                                   ),
                                 ),

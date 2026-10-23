@@ -1,4 +1,4 @@
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -22,7 +22,10 @@ class BookingService:
         """Mark pending bookings as no-show 24 hours after the appointment."""
         now = utcnow()
         cutoff = now - timedelta(hours=24)
-        cutoff_naive = cutoff.replace(tzinfo=None)
+        # Legacy rows may store visit_date as naive local Baghdad time.
+        # Compare those against a Baghdad-local naive cutoff to avoid timezone drift.
+        baghdad_tz = timezone(timedelta(hours=3))
+        cutoff_naive = (datetime.now(baghdad_tz) - timedelta(hours=24)).replace(tzinfo=None)
         result = await self.col.update_many(
             {
                 "status": BookingStatus.PENDING.value,

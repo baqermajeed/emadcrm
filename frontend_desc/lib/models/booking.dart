@@ -36,8 +36,8 @@ class Booking {
   /// Pending becomes no-show 24 hours after the appointment.
   BookingStatus get effectiveStatus {
     if (status != BookingStatus.pending) return status;
-    final due = visitDate.toUtc().add(const Duration(hours: 24));
-    if (DateTime.now().toUtc().isAfter(due)) return BookingStatus.noShow;
+    final due = visitDate.toLocal().add(const Duration(hours: 24));
+    if (DateTime.now().isAfter(due)) return BookingStatus.noShow;
     return status;
   }
 
