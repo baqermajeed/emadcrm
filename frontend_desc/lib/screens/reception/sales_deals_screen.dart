@@ -55,7 +55,6 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
   String _sort = 'newest';
   String? _salesId;
   String _houseType = 'all';
-  String _complex = 'all';
   DateTime? _fromDate;
   DateTime? _toDate;
   bool _grid = true;
@@ -251,11 +250,10 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
     final safeSearch = Uri.encodeComponent(search);
     final sales = _salesId ?? '';
     final house = _houseType;
-    final complex = _complex;
     final from = _fromDate?.toUtc().toIso8601String() ?? '';
     final to = _toDate?.toUtc().toIso8601String() ?? '';
     final sort = _sort;
-    return 'deals:search=$safeSearch:sales=$sales:house=$house:complex=$complex:from=$from:to=$to:sort=$sort:page=$page:limit=$_fetchPageSize';
+    return 'deals:search=$safeSearch:sales=$sales:house=$house:from=$from:to=$to:sort=$sort:page=$page:limit=$_fetchPageSize';
   }
 
   @override
@@ -265,12 +263,6 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
     _search.dispose();
     _scroll.dispose();
     super.dispose();
-  }
-
-  String _complexLabel(Deal d) {
-    final b = d.residentialBlock?.trim();
-    if (b != null && b.isNotEmpty) return b;
-    return 'لايوجد';
   }
 
   String _houseLabel(Deal d) {
@@ -286,23 +278,12 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
       search: _appliedSearch.isEmpty ? null : _appliedSearch,
       salesEmployeeId: _salesId,
       houseType: _houseType == 'all' ? null : _houseType,
-      residentialBlock: _complex == 'all' ? null : _complex,
       fromDate: _fromDate,
       toDate: _toDate == null
           ? null
           : DateTime(_toDate!.year, _toDate!.month, _toDate!.day, 23, 59, 59),
       sortDir: _sort == 'oldest' ? 'asc' : 'desc',
     );
-  }
-
-  List<String> get _complexOptions {
-    final set = <String>{};
-    for (final d in _deals) {
-      final b = d.residentialBlock?.trim();
-      if (b != null && b.isNotEmpty) set.add(b);
-    }
-    final list = set.toList()..sort();
-    return list;
   }
 
   List<Deal> _filtered() => _deals;
@@ -330,7 +311,6 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
     setState(() {
       _salesId = null;
       _houseType = 'all';
-      _complex = 'all';
       _fromDate = null;
       _toDate = null;
       _sort = 'newest';
@@ -488,8 +468,6 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
                     salesId: _salesId,
                     sort: _sort,
                     houseType: _houseType,
-                    complex: _complex,
-                    complexOptions: _complexOptions,
                     fromDate: _fromDate,
                     toDate: _toDate,
                     grid: _grid,
@@ -508,12 +486,6 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
                     onHouseType: (v) {
                       setState(() {
                         _houseType = v;
-                      });
-                      unawaited(_reloadDeals());
-                    },
-                    onComplex: (v) {
-                      setState(() {
-                        _complex = v;
                       });
                       unawaited(_reloadDeals());
                     },
@@ -542,7 +514,6 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
                                     deals: filtered,
                                     customerOf: customerOf,
                                     houseLabel: _houseLabel,
-                                    complexLabel: _complexLabel,
                                     onOpen: (d) =>
                                         widget.onOpenCustomer?.call(d.customerId),
                                     onPhone: (d) => _openPhone(d.phone),
@@ -864,15 +835,12 @@ class _FiltersBar extends StatelessWidget {
     required this.salesId,
     required this.sort,
     required this.houseType,
-    required this.complex,
-    required this.complexOptions,
     required this.fromDate,
     required this.toDate,
     required this.grid,
     required this.onSales,
     required this.onSort,
     required this.onHouseType,
-    required this.onComplex,
     required this.onPickFrom,
     required this.onPickTo,
     required this.onGrid,
@@ -883,15 +851,12 @@ class _FiltersBar extends StatelessWidget {
   final String? salesId;
   final String sort;
   final String houseType;
-  final String complex;
-  final List<String> complexOptions;
   final DateTime? fromDate;
   final DateTime? toDate;
   final bool grid;
   final ValueChanged<String?> onSales;
   final ValueChanged<String> onSort;
   final ValueChanged<String> onHouseType;
-  final ValueChanged<String> onComplex;
   final VoidCallback onPickFrom;
   final VoidCallback onPickTo;
   final ValueChanged<bool> onGrid;
@@ -980,28 +945,6 @@ class _FiltersBar extends StatelessWidget {
                     ],
                     onChanged: (v) {
                       if (v != null) onHouseType(v);
-                    },
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _filterField(
-                label: 'المجمع السكني',
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: complex,
-                    isExpanded: true,
-                    icon: const Icon(Icons.keyboard_arrow_down_rounded, color: _navy),
-                    items: [
-                      DropdownMenuItem(value: 'all', child: Text('كل المجمعات', style: _item())),
-                      ...complexOptions.map(
-                        (c) => DropdownMenuItem(value: c, child: Text(c, style: _item())),
-                      ),
-                    ],
-                    onChanged: (v) {
-                      if (v != null) onComplex(v);
                     },
                   ),
                 ),
@@ -1146,7 +1089,6 @@ class _DealsGrid extends StatelessWidget {
     required this.deals,
     required this.customerOf,
     required this.houseLabel,
-    required this.complexLabel,
     required this.onOpen,
     required this.onPhone,
     required this.onChat,
@@ -1157,7 +1099,6 @@ class _DealsGrid extends StatelessWidget {
   final List<Deal> deals;
   final Customer? Function(Deal) customerOf;
   final String Function(Deal) houseLabel;
-  final String Function(Deal) complexLabel;
   final ValueChanged<Deal> onOpen;
   final ValueChanged<Deal> onPhone;
   final ValueChanged<Deal> onChat;
@@ -1188,7 +1129,6 @@ class _DealsGrid extends StatelessWidget {
                     child: _DealCard(
                       deal: d,
                       house: houseLabel(d),
-                      complex: complexLabel(d),
                       callCenterName: customerOf(d)?.callCenterName,
                       callCenterAvatarUrl: customerOf(d)?.callCenterAvatarUrl,
                       onOpen: () => onOpen(d),
@@ -1270,7 +1210,6 @@ class _DealCard extends StatelessWidget {
   const _DealCard({
     required this.deal,
     required this.house,
-    required this.complex,
     required this.callCenterName,
     this.callCenterAvatarUrl,
     required this.onOpen,
@@ -1281,7 +1220,6 @@ class _DealCard extends StatelessWidget {
 
   final Deal deal;
   final String house;
-  final String complex;
   final String? callCenterName;
   final String? callCenterAvatarUrl;
   final VoidCallback onOpen;
@@ -1360,21 +1298,6 @@ class _DealCard extends StatelessWidget {
                     Flexible(
                       child: Text(
                         house,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.cairo(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: const Color(0xFF64748B),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    const Icon(Icons.apartment, size: 13, color: Color(0xFF64748B)),
-                    const SizedBox(width: 3),
-                    Flexible(
-                      child: Text(
-                        complex,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.cairo(

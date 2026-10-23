@@ -119,6 +119,41 @@ class CustomerService:
                 inferred[cid] = CustomerStatus.POTENTIAL.value
         return inferred
 
+    async def _backfill_missing_statuses(self) -> None:
+        missing_query = {"$or": [{"status": {"$exists": False}}, {"status": None}]}
+        missing_docs = await self.col.find(missing_query, {"_id": 1}).to_list(50000)
+        if not missing_docs:
+            return
+
+        id_by_str: dict[str, ObjectId] = {}
+        customer_ids: list[str] = []
+        for doc in missing_docs:
+            oid_value = doc.get("_id")
+            if isinstance(oid_value, ObjectId):
+                sid = str(oid_value)
+                id_by_str[sid] = oid_value
+                customer_ids.append(sid)
+        if not customer_ids:
+            return
+
+        inferred = await self._infer_status_map(customer_ids)
+        groups: dict[str, list[ObjectId]] = {}
+        for sid, status_value in inferred.items():
+            oid_value = id_by_str.get(sid)
+            if oid_value is None:
+                continue
+            groups.setdefault(status_value, []).append(oid_value)
+
+        if not groups:
+            return
+
+        now = utcnow()
+        for status_value, id_list in groups.items():
+            await self.col.update_many(
+                {"_id": {"$in": id_list}, "$or": [{"status": {"$exists": False}}, {"status": None}]},
+                {"$set": {"status": status_value, "updated_at": now}},
+            )
+
     async def get(self, customer_id: str) -> dict:
         doc = await self.col.find_one({"_id": oid(customer_id, "customer")})
         if not doc:
@@ -138,6 +173,10 @@ class CustomerService:
         page: int = 1,
         page_size: int = 50,
     ) -> tuple[list[dict], int]:
+        # Ensure status filter works for legacy rows where status was not persisted.
+        if status:
+            await self._backfill_missing_statuses()
+
         query: dict = {}
         if sales_employee_id:
             query["sales_employee_id"] = sales_employee_id

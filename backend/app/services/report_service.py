@@ -137,8 +137,15 @@ class ReportService:
         day_start_utc = day_start_local.astimezone(UTC)
         day_end_utc = day_end_local.astimezone(UTC)
 
-        today_match = self._dual_day_clause(
+        today_booking_match = self._dual_day_clause(
             field="visit_date",
+            start_utc=day_start_utc,
+            end_utc=day_end_utc,
+            start_local_naive=day_start_local.replace(tzinfo=None),
+            end_local_naive=day_end_local.replace(tzinfo=None),
+        )
+        today_approved_match = self._dual_day_clause(
+            field="approved_at",
             start_utc=day_start_utc,
             end_utc=day_end_utc,
             start_local_naive=day_start_local.replace(tzinfo=None),
@@ -161,13 +168,29 @@ class ReportService:
             }
         )
         today_bookings = await bookings.count_documents(
-            self._combine_query(booking_query, today_match)
+            self._combine_query(booking_query, today_booking_match)
         )
         total_confirmed_visits = approved_bookings
+        today_confirmed_match = {
+            "$or": [
+                today_approved_match,
+                {
+                    "$and": [
+                        {
+                            "$or": [
+                                {"approved_at": {"$exists": False}},
+                                {"approved_at": None},
+                            ]
+                        },
+                        today_booking_match,
+                    ]
+                },
+            ]
+        }
         today_confirmed_visits = await bookings.count_documents(
             self._combine_query(
                 {**booking_query, "status": BookingStatus.APPROVED.value},
-                today_match,
+                today_confirmed_match,
             )
         )
 

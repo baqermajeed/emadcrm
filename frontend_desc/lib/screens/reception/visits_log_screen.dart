@@ -104,7 +104,7 @@ class _VisitsLogScreenState extends State<VisitsLogScreen> {
 
   bool _isTodayVisit(Booking b) {
     final now = DateTime.now();
-    final d = b.visitDate.toLocal();
+    final d = b.visitLoggedAt.toLocal();
     return d.year == now.year && d.month == now.month && d.day == now.day;
   }
 
@@ -1119,8 +1119,9 @@ class _VisitsTable extends StatelessWidget {
       fontSize: 11,
       color: _tableText.withValues(alpha: 0.72),
     );
-    final date = DateFormat('dd/MM/yyyy').format(b.visitDate.toLocal());
-    final time = DateFormat('hh:mm a', 'ar').format(b.visitDate.toLocal());
+    final when = b.visitLoggedAt.toLocal();
+    final date = DateFormat('dd/MM/yyyy').format(when);
+    final time = DateFormat('hh:mm a', 'ar').format(when);
     final firstVisit = b.isFirstVisit;
 
     return Material(

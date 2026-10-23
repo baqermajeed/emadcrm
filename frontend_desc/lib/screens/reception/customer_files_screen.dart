@@ -43,7 +43,6 @@ class _CustomerFilesScreenState extends State<CustomerFilesScreen> {
   CustomerStatus? _statusFilter;
   DateTime? _fromDate;
   DateTime? _toDate;
-  String _complex = 'all';
   String _houseType = 'all';
   String _sort = 'newest';
   bool _grid = true;
@@ -160,7 +159,6 @@ class _CustomerFilesScreenState extends State<CustomerFilesScreen> {
       _statusFilter = null;
       _fromDate = null;
       _toDate = null;
-      _complex = 'all';
       _houseType = 'all';
     });
     unawaited(_loadCustomersFromFilters(queryOverride: ''));
@@ -254,12 +252,10 @@ class _CustomerFilesScreenState extends State<CustomerFilesScreen> {
                           _FilterPanel(
                             search: _filterSearch,
                             status: _statusFilter,
-                            complex: _complex,
                             houseType: _houseType,
                             fromDate: _fromDate,
                             toDate: _toDate,
                             onStatus: (v) => setState(() => _statusFilter = v),
-                            onComplex: (v) => setState(() => _complex = v),
                             onHouseType: (v) => setState(() => _houseType = v),
                             onPickFrom: () => _pickDate(from: true),
                             onPickTo: () => _pickDate(from: false),
@@ -816,12 +812,10 @@ class _FilterPanel extends StatelessWidget {
   const _FilterPanel({
     required this.search,
     required this.status,
-    required this.complex,
     required this.houseType,
     required this.fromDate,
     required this.toDate,
     required this.onStatus,
-    required this.onComplex,
     required this.onHouseType,
     required this.onPickFrom,
     required this.onPickTo,
@@ -831,12 +825,10 @@ class _FilterPanel extends StatelessWidget {
 
   final TextEditingController search;
   final CustomerStatus? status;
-  final String complex;
   final String houseType;
   final DateTime? fromDate;
   final DateTime? toDate;
   final ValueChanged<CustomerStatus?> onStatus;
-  final ValueChanged<String> onComplex;
   final ValueChanged<String> onHouseType;
   final VoidCallback onPickFrom;
   final VoidCallback onPickTo;
@@ -929,21 +921,6 @@ class _FilterPanel extends StatelessWidget {
                 ),
               ],
               onChanged: onStatus,
-            ),
-            const SizedBox(height: 14),
-            _label('المجمع السكني'),
-            const SizedBox(height: 8),
-            _dropdown<String>(
-              value: complex,
-              hint: 'كل المجمعات',
-              items: [
-                DropdownMenuItem(value: 'all', child: Text('كل المجمعات', style: _ddStyle())),
-                DropdownMenuItem(value: 'a', child: Text('مجمع A', style: _ddStyle())),
-                DropdownMenuItem(value: 'b', child: Text('مجمع B', style: _ddStyle())),
-              ],
-              onChanged: (v) {
-                if (v != null) onComplex(v);
-              },
             ),
             const SizedBox(height: 14),
             _label('نوع الدار'),

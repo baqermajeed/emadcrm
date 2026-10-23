@@ -15,6 +15,7 @@ class Booking {
     this.callCenterAvatarUrl,
     this.customerId,
     this.visitType,
+    this.approvedAt,
     this.createdAt,
   });
 
@@ -31,7 +32,11 @@ class Booking {
   final String? callCenterAvatarUrl;
   final String? customerId;
   final VisitType? visitType;
+  final DateTime? approvedAt;
   final DateTime? createdAt;
+
+  /// Actual attendance/confirmation timestamp (for approved bookings).
+  DateTime get visitLoggedAt => approvedAt ?? visitDate;
 
   /// Pending becomes no-show 24 hours after the appointment.
   BookingStatus get effectiveStatus {
@@ -61,6 +66,9 @@ class Booking {
         callCenterAvatarUrl: json['call_center_avatar_url'] as String?,
         customerId: json['customer_id'] as String?,
         visitType: VisitTypeX.fromApi(json['visit_type'] as String?),
+        approvedAt: json['approved_at'] != null
+            ? DateTime.parse(json['approved_at'] as String)
+            : null,
         createdAt: json['created_at'] != null
             ? DateTime.parse(json['created_at'] as String)
             : null,
@@ -80,6 +88,7 @@ class Booking {
         'call_center_avatar_url': callCenterAvatarUrl,
         'customer_id': customerId,
         'visit_type': visitType?.api,
+        'approved_at': approvedAt?.toUtc().toIso8601String(),
         'created_at': createdAt?.toUtc().toIso8601String(),
       };
 }
