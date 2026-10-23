@@ -1,10 +1,14 @@
 ﻿import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
@@ -429,14 +433,30 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
       maxWidth: 1200,
     );
     if (file == null || !mounted) return;
-    final bytes = await file.readAsBytes();
+    final originalBytes = await file.readAsBytes();
+    if (!mounted) return;
+    final croppedBytes = await showDialog<Uint8List>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.65),
+      builder: (_) => _AvatarCropDialog(sourceBytes: originalBytes),
+    );
+    if (croppedBytes == null || !mounted) return;
+    final croppedPath = await _writeTempAvatar(croppedBytes);
     if (!mounted) return;
     setState(() {
-      _pickedBytes = bytes;
-      _pickedPath = file.path;
-      _pickedName = file.name;
+      _pickedBytes = croppedBytes;
+      _pickedPath = croppedPath;
+      _pickedName = 'avatar_${DateTime.now().millisecondsSinceEpoch}.png';
       _removeAvatar = false;
     });
+  }
+
+  Future<String> _writeTempAvatar(Uint8List bytes) async {
+    final dir = await getTemporaryDirectory();
+    final path = '${dir.path}\\avatar_${DateTime.now().millisecondsSinceEpoch}.png';
+    final f = File(path);
+    await f.writeAsBytes(bytes, flush: true);
+    return f.path;
   }
 
   void _clearPhoto() {
@@ -740,6 +760,194 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AvatarCropDialog extends StatefulWidget {
+  const _AvatarCropDialog({required this.sourceBytes});
+
+  final Uint8List sourceBytes;
+
+  @override
+  State<_AvatarCropDialog> createState() => _AvatarCropDialogState();
+}
+
+class _AvatarCropDialogState extends State<_AvatarCropDialog> {
+  static const double _cropSize = 280;
+  final TransformationController _transform = TransformationController();
+  final GlobalKey _captureKey = GlobalKey();
+
+  ui.Image? _decoded;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _decodeImage();
+  }
+
+  @override
+  void dispose() {
+    _transform.dispose();
+    _decoded?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _decodeImage() async {
+    final codec = await ui.instantiateImageCodec(widget.sourceBytes);
+    final frame = await codec.getNextFrame();
+    _decoded = frame.image;
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _saveCrop() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      final boundary = _captureKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      if (boundary == null) {
+        if (mounted) setState(() => _saving = false);
+        return;
+      }
+      final image = await boundary.toImage(pixelRatio: 2.4);
+      final data = await image.toByteData(format: ui.ImageByteFormat.png);
+      image.dispose();
+      if (data == null) {
+        if (mounted) setState(() => _saving = false);
+        return;
+      }
+      if (!mounted) return;
+      Navigator.pop(context, data.buffer.asUint8List());
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تعذر اقتصاص الصورة')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final decoded = _decoded;
+    final theme = Theme.of(context);
+    final canCrop = decoded != null && !_saving;
+
+    Widget cropBody;
+    if (decoded == null) {
+      cropBody = const SizedBox(
+        width: _cropSize,
+        height: _cropSize,
+        child: Center(child: CircularProgressIndicator()),
+      );
+    } else {
+      final imageRatio = decoded.width / decoded.height;
+      final baseWidth = imageRatio >= 1 ? _cropSize * imageRatio : _cropSize;
+      final baseHeight = imageRatio >= 1 ? _cropSize : _cropSize / imageRatio;
+      cropBody = RepaintBoundary(
+        key: _captureKey,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            width: _cropSize,
+            height: _cropSize,
+            color: const Color(0xFFF1F5F9),
+            child: InteractiveViewer(
+              transformationController: _transform,
+              minScale: 1,
+              maxScale: 4,
+              boundaryMargin: const EdgeInsets.all(240),
+              child: Center(
+                child: Image.memory(
+                  widget.sourceBytes,
+                  width: baseWidth,
+                  height: baseHeight,
+                  fit: BoxFit.fill,
+                  filterQuality: FilterQuality.high,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.crop_square_rounded, color: ReceptionTokens.confirmBlue),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'اقتصاص الصورة 1:1',
+                    style: GoogleFonts.cairo(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                      color: ReceptionTokens.navy,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: _saving ? null : () => Navigator.pop(context),
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              ],
+            ),
+            Text(
+              'حرّك الصورة وكبّر/صغّر حتى تضبط الإطار المربع',
+              style: GoogleFonts.cairo(
+                color: ReceptionTokens.navy.withValues(alpha: 0.7),
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+              ),
+            ),
+            const SizedBox(height: 12),
+            cropBody,
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: canCrop ? _saveCrop : null,
+                icon: _saving
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Icon(Icons.check_rounded),
+                label: Text(
+                  _saving ? 'جاري الحفظ...' : 'اعتماد القص',
+                  style: GoogleFonts.cairo(fontWeight: FontWeight.w800),
+                ),
+                style: FilledButton.styleFrom(
+                  backgroundColor: ReceptionTokens.confirmBlue,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            TextButton(
+              onPressed: _saving ? null : () => Navigator.pop(context),
+              child: Text(
+                'إلغاء',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: ReceptionTokens.navy.withValues(alpha: 0.75),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

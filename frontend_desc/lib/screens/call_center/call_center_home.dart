@@ -12,11 +12,13 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../controllers/auth_controller.dart';
 import '../../controllers/booking_controller.dart';
+import '../../controllers/customer_controller.dart';
 import '../../core/api_client.dart';
 import '../../core/cache_service.dart';
 import '../../core/live_summary_cache.dart';
 import '../../core/reception_tokens.dart';
 import '../../models/booking.dart';
+import '../../models/customer.dart';
 import '../../models/report.dart';
 import '../../services/report_service.dart';
 import '../../utils/enums.dart';
@@ -36,6 +38,7 @@ class CallCenterHome extends StatefulWidget {
 class _CallCenterHomeState extends State<CallCenterHome> {
   static const _ink = Color(0xFF123B70);
 
+  int _nav = 0; // 0: bookings, 1: contacts
   final _search = TextEditingController();
   BookingStatus? _statusFilter;
   DateTime? _fromDate;
@@ -93,6 +96,37 @@ class _CallCenterHomeState extends State<CallCenterHome> {
       if (!mounted) return;
       setState(() {});
     });
+  }
+
+  void _runContactsSearch(String query) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 300), () async {
+      final trimmed = query.trim();
+      final customers = context.read<CustomerController>();
+      await customers.load(
+            search: trimmed.isEmpty ? null : trimmed,
+            sortDir: 'desc',
+          );
+      await customers.loadAllPages();
+    });
+  }
+
+  Future<void> _ensureContactsLoaded() async {
+    final customers = context.read<CustomerController>();
+    await customers.load(sortDir: 'desc');
+    await customers.loadAllPages();
+  }
+
+  Future<void> _onSidebarSelect(int index) async {
+    if (_nav == index) return;
+    setState(() => _nav = index);
+    _search.clear();
+    if (index == 1) {
+      await _ensureContactsLoaded();
+    } else {
+      await _loadBookingsFromFilters(queryOverride: '');
+      await _loadSummary();
+    }
   }
 
   Future<void> _pickDate({required bool from}) async {
@@ -217,8 +251,11 @@ class _CallCenterHomeState extends State<CallCenterHome> {
   @override
   Widget build(BuildContext context) {
     final ctrl = context.watch<BookingController>();
+    final customersCtrl = context.watch<CustomerController>();
     final user = context.watch<AuthController>().user;
     final items = _filtered(ctrl.items);
+    final customers = customersCtrl.items;
+    final isContactsPage = _nav == 1;
 
     final total = _summary?.totalBookings ?? ctrl.items.length;
     final pending = _summary?.pendingBookings ??
@@ -238,7 +275,8 @@ class _CallCenterHomeState extends State<CallCenterHome> {
       child: Scaffold(
         backgroundColor: ReceptionTokens.bg,
         floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
-        floatingActionButton: _NewBookingFab(onTap: _openCreate),
+        floatingActionButton:
+            isContactsPage ? null : _NewBookingFab(onTap: _openCreate),
         body: Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -253,13 +291,20 @@ class _CallCenterHomeState extends State<CallCenterHome> {
                         avatarUrl: user?.avatarUrl,
                         search: _search,
                         suggestions: ReceptionSearchBar.uniqueOf([
-                          for (final b in ctrl.items)
-                            ...[b.name, b.phone, b.governorate, b.source.label],
+                          if (isContactsPage)
+                            for (final c in customers) ...[c.name, c.phone]
+                          else
+                            for (final b in ctrl.items)
+                              ...[b.name, b.phone, b.governorate, b.source.label],
                         ]),
-                        onSearch: () => _runServerSearch(_search.text),
-                        onQueryChanged: _runServerSearch,
+                        onSearch: () => isContactsPage
+                            ? _runContactsSearch(_search.text)
+                            : _runServerSearch(_search.text),
+                        onQueryChanged:
+                            isContactsPage ? _runContactsSearch : _runServerSearch,
                         onLogout: () =>
                             context.read<AuthController>().logout(),
+                        pageTitle: isContactsPage ? 'تواصل' : 'الرئيسية',
                       ),
                       Expanded(
                         child: RefreshIndicator(
@@ -273,62 +318,120 @@ class _CallCenterHomeState extends State<CallCenterHome> {
                                 padding:
                                     const EdgeInsets.fromLTRB(20, 12, 20, 0),
                                 sliver: SliverToBoxAdapter(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: [
-                                      _StatsRow(
-                                        total: total,
-                                        pending: pending,
-                                        attended: attended,
-                                        missed: missed,
-                                        loading: ctrl.loading &&
-                                            ctrl.items.isEmpty,
-                                      ),
-                                      const SizedBox(height: 14),
-                                      _FiltersRow(
-                                        selected: _statusFilter,
-                                        onStatus: (v) {
-                                          setState(() => _statusFilter = v);
-                                          unawaited(_loadBookingsFromFilters());
-                                        },
-                                        fromDate: _fromDate,
-                                        toDate: _toDate,
-                                        onPickFrom: () =>
-                                            _pickDate(from: true),
-                                        onPickTo: () =>
-                                            _pickDate(from: false),
-                                        onClearDates: _clearDates,
-                                      ),
-                                      const SizedBox(height: 14),
-                                      Row(
-                                        children: [
-                                          Text(
-                                            'قائمة الحجوزات',
-                                            style: GoogleFonts.cairo(
-                                              fontSize: 15,
-                                              fontWeight: FontWeight.w800,
-                                              color: _ink,
+                                  child: isContactsPage
+                                      ? Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.stretch,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                Text(
+                                                  'تواصل مع الزبائن',
+                                                  style: GoogleFonts.cairo(
+                                                    fontSize: 15,
+                                                    fontWeight: FontWeight.w800,
+                                                    color: _ink,
+                                                  ),
+                                                ),
+                                                const Spacer(),
+                                                Text(
+                                                  '${customers.length} زبون',
+                                                  style: GoogleFonts.cairo(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: ReceptionTokens.navy
+                                                        .withValues(alpha: 0.55),
+                                                  ),
+                                                ),
+                                              ],
                                             ),
-                                          ),
-                                          const Spacer(),
-                                          Text(
-                                            '${items.length} حجز',
-                                            style: GoogleFonts.cairo(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w700,
-                                              color: ReceptionTokens.navy
-                                                  .withValues(alpha: 0.55),
+                                            const SizedBox(height: 10),
+                                          ],
+                                        )
+                                      : Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.stretch,
+                                          children: [
+                                            _StatsRow(
+                                              total: total,
+                                              pending: pending,
+                                              attended: attended,
+                                              missed: missed,
+                                              loading: ctrl.loading &&
+                                                  ctrl.items.isEmpty,
                                             ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 10),
-                                    ],
-                                  ),
+                                            const SizedBox(height: 14),
+                                            _FiltersRow(
+                                              selected: _statusFilter,
+                                              onStatus: (v) {
+                                                setState(
+                                                    () => _statusFilter = v);
+                                                unawaited(
+                                                    _loadBookingsFromFilters());
+                                              },
+                                              fromDate: _fromDate,
+                                              toDate: _toDate,
+                                              onPickFrom: () =>
+                                                  _pickDate(from: true),
+                                              onPickTo: () =>
+                                                  _pickDate(from: false),
+                                              onClearDates: _clearDates,
+                                            ),
+                                            const SizedBox(height: 14),
+                                            Row(
+                                              children: [
+                                                Text(
+                                                  'قائمة الحجوزات',
+                                                  style: GoogleFonts.cairo(
+                                                    fontSize: 15,
+                                                    fontWeight: FontWeight.w800,
+                                                    color: _ink,
+                                                  ),
+                                                ),
+                                                const Spacer(),
+                                                Text(
+                                                  '${items.length} حجز',
+                                                  style: GoogleFonts.cairo(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: ReceptionTokens.navy
+                                                        .withValues(alpha: 0.55),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 10),
+                                          ],
+                                        ),
                                 ),
                               ),
-                              if (ctrl.loading && ctrl.items.isEmpty)
+                              if (isContactsPage && customersCtrl.loading && customers.isEmpty)
+                                const SliverFillRemaining(
+                                  hasScrollBody: false,
+                                  child: Center(
+                                    child: CircularProgressIndicator(
+                                      color: ReceptionTokens.teal,
+                                    ),
+                                  ),
+                                )
+                              else if (isContactsPage && customers.isEmpty)
+                                const SliverFillRemaining(
+                                  hasScrollBody: false,
+                                  child: Center(child: Text('لا يوجد زبائن')),
+                                )
+                              else if (isContactsPage)
+                                SliverPadding(
+                                  padding:
+                                      const EdgeInsets.fromLTRB(20, 0, 20, 100),
+                                  sliver: SliverToBoxAdapter(
+                                    child: _CustomersContactTable(
+                                      rows: customers,
+                                      onWhatsApp: _openWhatsApp,
+                                      loadingMore: customersCtrl.loadingMore,
+                                    ),
+                                  ),
+                                )
+                              else if (ctrl.loading && ctrl.items.isEmpty)
                                 const SliverFillRemaining(
                                   hasScrollBody: false,
                                   child: Center(
@@ -364,7 +467,10 @@ class _CallCenterHomeState extends State<CallCenterHome> {
                 ),
               ),
             ),
-            const _Sidebar(),
+            _Sidebar(
+              selected: _nav,
+              onSelect: (i) => unawaited(_onSidebarSelect(i)),
+            ),
           ],
         ),
       ),
@@ -372,6 +478,15 @@ class _CallCenterHomeState extends State<CallCenterHome> {
   }
 
   Future<void> _refreshAll() async {
+    if (_nav == 1) {
+      final customers = context.read<CustomerController>();
+      await customers.load(
+            search: _search.text.trim().isEmpty ? null : _search.text.trim(),
+            sortDir: 'desc',
+          );
+      await customers.loadAllPages();
+      return;
+    }
     await _loadBookingsFromFilters();
     await _loadSummary();
   }
@@ -380,10 +495,17 @@ class _CallCenterHomeState extends State<CallCenterHome> {
 // ───────────────────────── Sidebar 266px ─────────────────────────
 
 class _Sidebar extends StatelessWidget {
-  const _Sidebar();
+  const _Sidebar({required this.selected, required this.onSelect});
 
   static const _logo =
       'asset/Premium Gold and Teal Real Estate Emblem.png';
+  final int selected;
+  final ValueChanged<int> onSelect;
+
+  static const _items = [
+    (Icons.home_rounded, 'الرئيسية'),
+    (Icons.forum_rounded, 'تواصل'),
+  ];
   @override
   Widget build(BuildContext context) {
     const radius = BorderRadius.only(
@@ -504,7 +626,82 @@ class _Sidebar extends StatelessWidget {
                 ],
               ),
             ),
+            Positioned(
+              left: 16,
+              right: 16,
+              bottom: 28,
+              child: Directionality(
+                textDirection: ui.TextDirection.rtl,
+                child: Column(
+                  children: [
+                    for (var i = 0; i < _items.length; i++) ...[
+                      _SideItem(
+                        icon: _items[i].$1,
+                        label: _items[i].$2,
+                        selected: selected == i,
+                        onTap: () => onSelect(i),
+                      ),
+                      if (i != _items.length - 1) const SizedBox(height: 8),
+                    ],
+                  ],
+                ),
+              ),
+            ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SideItem extends StatelessWidget {
+  const _SideItem({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? Colors.white.withValues(alpha: 0.18) : Colors.white.withValues(alpha: 0.10),
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          height: 46,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: selected
+                  ? Colors.white.withValues(alpha: 0.55)
+                  : Colors.white.withValues(alpha: 0.22),
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, size: 18, color: Colors.white),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  label,
+                  style: GoogleFonts.cairo(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -522,6 +719,7 @@ class _Header extends StatelessWidget {
     required this.onSearch,
     required this.onQueryChanged,
     required this.onLogout,
+    required this.pageTitle,
   });
 
   final String userName;
@@ -531,6 +729,7 @@ class _Header extends StatelessWidget {
   final VoidCallback onSearch;
   final ValueChanged<String> onQueryChanged;
   final VoidCallback onLogout;
+  final String pageTitle;
 
   @override
   Widget build(BuildContext context) {
@@ -619,7 +818,7 @@ class _Header extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  'الرئيسية',
+                  pageTitle,
                   style: TextStyle(
                     color: ReceptionTokens.navy.withValues(alpha: 0.8),
                     fontWeight: FontWeight.w700,
@@ -990,6 +1189,155 @@ class _FiltersRow extends StatelessWidget {
 }
 
 // ───────────────────────── Bookings table ─────────────────────────
+
+class _CustomersContactTable extends StatelessWidget {
+  const _CustomersContactTable({
+    required this.rows,
+    required this.onWhatsApp,
+    required this.loadingMore,
+  });
+
+  final List<Customer> rows;
+  final Future<void> Function(String phone) onWhatsApp;
+  final bool loadingMore;
+
+  static const _tableText = Color(0xFF123B70);
+
+  @override
+  Widget build(BuildContext context) {
+    final headerStyle = GoogleFonts.cairo(
+      fontWeight: FontWeight.w800,
+      fontSize: 12,
+      color: Colors.white,
+    );
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: ReceptionTokens.cardShadow,
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          Container(
+            color: ReceptionTokens.teal,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              children: [
+                Expanded(child: Text('اسم الزبون', style: headerStyle)),
+                SizedBox(
+                  width: 140,
+                  child: Text('رقم الهاتف', textAlign: TextAlign.center, style: headerStyle),
+                ),
+                SizedBox(
+                  width: 120,
+                  child: Text('الحالة', textAlign: TextAlign.center, style: headerStyle),
+                ),
+                SizedBox(
+                  width: 130,
+                  child: Text('تواصل', textAlign: TextAlign.center, style: headerStyle),
+                ),
+              ],
+            ),
+          ),
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: rows.length,
+            separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFFEEF2F6)),
+            itemBuilder: (context, i) {
+              final c = rows[i];
+              return Container(
+                color: i.isOdd ? const Color(0xFFF7FBFC) : Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        c.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.cairo(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: _tableText,
+                        ),
+                      ),
+                    ),
+                    SizedBox(
+                      width: 140,
+                      child: Text(
+                        c.phone,
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.cairo(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: ReceptionTokens.linkBlue,
+                        ),
+                      ),
+                    ),
+                    SizedBox(
+                      width: 120,
+                      child: Text(
+                        (c.status ?? CustomerStatus.potential).label,
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.cairo(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: _tableText.withValues(alpha: 0.85),
+                        ),
+                      ),
+                    ),
+                    SizedBox(
+                      width: 130,
+                      child: Center(
+                        child: Material(
+                          color: const Color(0xFFE8F4FF),
+                          borderRadius: BorderRadius.circular(10),
+                          child: InkWell(
+                            onTap: () => onWhatsApp(c.phone),
+                            borderRadius: BorderRadius.circular(10),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  RAssets.source('whatsapp', size: 16),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'واتساب',
+                                    style: GoogleFonts.cairo(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                      color: ReceptionTokens.confirmBlue,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+          if (loadingMore)
+            const Padding(
+              padding: EdgeInsets.all(10),
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
 
 class _BookingsTable extends StatelessWidget {
   const _BookingsTable({

@@ -15,6 +15,7 @@ AccessDep = Annotated[
     dict,
     Depends(
         require_roles(
+            UserRole.CALL_CENTER,
             UserRole.RECEPTION,
             UserRole.SALES,
             UserRole.MANAGER,
