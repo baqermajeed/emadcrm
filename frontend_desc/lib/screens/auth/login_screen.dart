@@ -1,10 +1,10 @@
-import 'dart:io' show Platform, Process;
+﻿import 'dart:io' show Platform, Process;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
+import '../../core/app_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -187,7 +187,7 @@ class _DeveloperSignature extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 10),
               child: Text(
                 'من تطوير',
-                style: GoogleFonts.cairo(
+                style: AppFonts.style(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
                   color: Colors.white.withValues(alpha: 0.9),
@@ -213,7 +213,7 @@ class _DeveloperSignature extends StatelessWidget {
                 Text(
                   'شركة دقة البوصلة',
                   textAlign: TextAlign.right,
-                  style: GoogleFonts.cairo(
+                  style: AppFonts.style(
                     fontSize: 14,
                     fontWeight: FontWeight.w800,
                     color: Colors.white,
@@ -230,7 +230,7 @@ class _DeveloperSignature extends StatelessWidget {
                 Text(
                   'للتسويق العقاري',
                   textAlign: TextAlign.right,
-                  style: GoogleFonts.cairo(
+                  style: AppFonts.style(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                     color: Colors.white.withValues(alpha: 0.92),
@@ -334,7 +334,7 @@ class _LoginCard extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               'شركة عماد سكر',
-              style: GoogleFonts.cairo(
+              style: AppFonts.style(
                 fontSize: 28,
                 fontWeight: FontWeight.w800,
                 color: navy,
@@ -345,7 +345,7 @@ class _LoginCard extends StatelessWidget {
             Text(
               'نظام ادارة مبيعات المجمعات السكنية',
               textAlign: TextAlign.center,
-              style: GoogleFonts.cairo(
+              style: AppFonts.style(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
                 color: muted,
@@ -390,7 +390,7 @@ class _LoginCard extends StatelessWidget {
                   onTap: onForgotPassword,
                   child: Text(
                     'نسيت كلمة المرور؟',
-                    style: GoogleFonts.cairo(
+                    style: AppFonts.style(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
                       color: blue,
@@ -403,7 +403,7 @@ class _LoginCard extends StatelessWidget {
                   children: [
                     Text(
                       'تذكرني في هذا الجهاز',
-                      style: GoogleFonts.cairo(
+                      style: AppFonts.style(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
                         color: navy,
@@ -466,7 +466,7 @@ class _LoginCard extends StatelessWidget {
                               children: [
                                 Text(
                                   'دخول',
-                                  style: GoogleFonts.cairo(
+                                  style: AppFonts.style(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w800,
                                     color: Colors.white,
@@ -507,7 +507,7 @@ class _LoginCard extends StatelessWidget {
       textInputAction: textInputAction,
       onFieldSubmitted: onSubmitted,
       textAlign: TextAlign.right,
-      style: GoogleFonts.cairo(
+      style: AppFonts.style(
         fontWeight: FontWeight.w600,
         fontSize: 14,
         color: navy,
@@ -515,7 +515,7 @@ class _LoginCard extends StatelessWidget {
       validator: validator,
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: GoogleFonts.cairo(
+        hintStyle: AppFonts.style(
           fontWeight: FontWeight.w600,
           fontSize: 14,
           color: muted,

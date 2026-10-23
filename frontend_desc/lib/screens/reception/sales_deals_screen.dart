@@ -1,4 +1,4 @@
-import 'dart:ui' as ui;
+﻿import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -277,14 +277,6 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
     final auth = context.watch<AuthController>();
     final filtered = _filtered();
     final totalAll = _deals.length;
-    final completed = totalAll; // كل الصفقات مكتملة
-    const inProgress = 0;
-    final collected = _deals.fold<double>(0, (s, d) => s + d.downPayment);
-    final remaining = _deals.fold<double>(0, (s, d) {
-      final left = d.totalPrice - d.downPayment;
-      return s + (left > 0 ? left : 0);
-    });
-
     final pageCount = filtered.isEmpty ? 1 : ((filtered.length - 1) ~/ _pageSize) + 1;
     final safePage = _page.clamp(0, pageCount - 1);
     if (safePage != _page) {
@@ -336,10 +328,6 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
                 children: [
                   _StatsRow(
                     total: totalAll,
-                    completed: completed,
-                    inProgress: inProgress,
-                    collected: collected,
-                    remaining: remaining,
                     loading: _loading && _deals.isEmpty,
                     onAdd: _addDeal,
                   ),
@@ -565,19 +553,11 @@ class _DealsHeader extends StatelessWidget {
 class _StatsRow extends StatelessWidget {
   const _StatsRow({
     required this.total,
-    required this.completed,
-    required this.inProgress,
-    required this.collected,
-    required this.remaining,
     required this.loading,
     required this.onAdd,
   });
 
   final int total;
-  final int completed;
-  final int inProgress;
-  final double collected;
-  final double remaining;
   final bool loading;
   final VoidCallback onAdd;
 
@@ -587,7 +567,8 @@ class _StatsRow extends StatelessWidget {
       textDirection: ui.TextDirection.rtl,
       child: Row(
         children: [
-          Expanded(
+          SizedBox(
+            width: 220,
             child: _StatCard(
               label: 'إجمالي الصفقات',
               value: loading ? '—' : '$total',
@@ -596,49 +577,7 @@ class _StatsRow extends StatelessWidget {
               iconBg: const Color(0xFFDBEAFE),
             ),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: _StatCard(
-              label: 'الصفقات المكتملة',
-              value: loading ? '—' : '$completed',
-              iconAsset: RAssets.statStatus,
-              accent: const Color(0xFF059669),
-              iconBg: const Color(0xFFD1FAE5),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: _StatCard(
-              label: 'قيد الإجراءات',
-              value: loading ? '—' : '$inProgress',
-              iconAsset: RAssets.statLastVisit,
-              accent: const Color(0xFFEA580C),
-              iconBg: const Color(0xFFFFEDD5),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: _StatCard(
-              label: 'مبالغ محصلة',
-              value: loading ? '—' : formatMoney(collected),
-              iconAsset: RAssets.statStatus,
-              accent: const Color(0xFF059669),
-              iconBg: const Color(0xFFD1FAE5),
-              valueSize: 16,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: _StatCard(
-              label: 'مبالغ متبقية',
-              value: loading ? '—' : formatMoney(remaining),
-              iconAsset: RAssets.statLastVisit,
-              accent: const Color(0xFFEA580C),
-              iconBg: const Color(0xFFFFEDD5),
-              valueSize: 16,
-            ),
-          ),
-          const SizedBox(width: 12),
+          const Spacer(),
           Material(
             color: Colors.transparent,
             child: InkWell(

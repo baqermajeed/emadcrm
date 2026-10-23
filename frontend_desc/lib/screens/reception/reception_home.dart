@@ -1,4 +1,4 @@
-import 'dart:ui' as ui;
+﻿import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -142,7 +142,7 @@ class _ReceptionHomeState extends State<ReceptionHome> {
       list = list.where((b) => _sameDay(b.visitDate, _dateFilter!)).toList();
     }
     if (_statusFilter != null) {
-      list = list.where((b) => b.status == _statusFilter).toList();
+      list = list.where((b) => b.effectiveStatus == _statusFilter).toList();
     }
     final q = _search.text.trim().toLowerCase();
     if (q.isNotEmpty) {
@@ -239,8 +239,8 @@ class _ReceptionHomeState extends State<ReceptionHome> {
     final todayList = all.where((b) => _sameDay(b.visitDate, today)).toList();
     // اليوم = حجوزات اليوم فقط؛ المكتملة/المتبقية من كل الحجوزات.
     final total = todayList.length;
-    final done = all.where((b) => b.status == BookingStatus.approved).length;
-    final left = all.where((b) => b.status == BookingStatus.pending).length;
+    final done = all.where((b) => b.effectiveStatus == BookingStatus.approved).length;
+    final left = all.where((b) => b.effectiveStatus == BookingStatus.pending).length;
     final rows = _rows(all);
     final pageCount = rows.isEmpty ? 1 : ((rows.length - 1) ~/ _pageSize) + 1;
     final safePage = _page.clamp(0, pageCount - 1);
@@ -269,70 +269,92 @@ class _ReceptionHomeState extends State<ReceptionHome> {
           onLogout: () => context.read<AuthController>().logout(),
         ),
         Expanded(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(30, 12, 24, 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              // شاشات قصيرة: قلّل الهيدر/البانر لإفساح مساحة للجدول.
+              final short = constraints.maxHeight < 680;
+              final compact = constraints.maxHeight < 780;
+              final topGap = short ? 6.0 : (compact ? 8.0 : 12.0);
+              final sidePad = short
+                  ? const EdgeInsets.fromLTRB(20, 6, 16, 10)
+                  : const EdgeInsets.fromLTRB(30, 12, 24, 20);
+
+              return Padding(
+                padding: sidePad,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _QuickCustomerCreate(
-                      sales: _sales,
-                      name: _qName,
-                      phone: _qPhone,
-                      salesId: _qSalesId,
-                      onSales: (v) => setState(() => _qSalesId = v),
-                      onCreate: _quickCreateCustomer,
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          const _Banner(),
-                          const SizedBox(height: 16),
-                          _Stats(total: total, done: done, left: left),
-                          const SizedBox(height: 24),
-                          _TableFilters(
-                            statusFilter: _statusFilter,
-                            dateFilter: _dateFilter,
-                            onStatus: (v) => setState(() {
-                              _statusFilter = v;
-                              _page = 0;
-                            }),
-                            onDate: (v) => setState(() {
-                              _dateFilter = v;
-                              _page = 0;
-                            }),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _QuickCustomerCreate(
+                          sales: _sales,
+                          name: _qName,
+                          phone: _qPhone,
+                          salesId: _qSalesId,
+                          onSales: (v) => setState(() => _qSalesId = v),
+                          onCreate: _quickCreateCustomer,
+                          compact: compact || short,
+                        ),
+                        SizedBox(width: short ? 10 : 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (!short) ...[
+                                _Banner(compact: compact),
+                                SizedBox(height: compact ? 8 : 16),
+                              ],
+                              _Stats(
+                                total: total,
+                                done: done,
+                                left: left,
+                                compact: compact || short,
+                              ),
+                              SizedBox(height: short ? 8 : (compact ? 12 : 24)),
+                              _TableFilters(
+                                statusFilter: _statusFilter,
+                                dateFilter: _dateFilter,
+                                onStatus: (v) => setState(() {
+                                  _statusFilter = v;
+                                  _page = 0;
+                                }),
+                                onDate: (v) => setState(() {
+                                  _dateFilter = v;
+                                  _page = 0;
+                                }),
+                                compact: compact || short,
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: topGap),
+                    Expanded(
+                      child: _BookingsTable(
+                        rows: pageRows,
+                        rowOffset: start,
+                        scrollController: _tableScroll,
+                        loading: bookings.loading && all.isEmpty,
+                        onApprove: _approve,
+                        onProfile: _profile,
+                        compact: compact || short,
                       ),
+                    ),
+                    SizedBox(height: short ? 4 : 8),
+                    _BookingsPagination(
+                      from: from,
+                      to: to,
+                      total: rows.length,
+                      page: safePage,
+                      pageCount: pageCount,
+                      onPage: _goToPage,
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: _BookingsTable(
-                    rows: pageRows,
-                    rowOffset: start,
-                    scrollController: _tableScroll,
-                    loading: bookings.loading && all.isEmpty,
-                    onApprove: _approve,
-                    onProfile: _profile,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                _BookingsPagination(
-                  from: from,
-                  to: to,
-                  total: rows.length,
-                  page: safePage,
-                  pageCount: pageCount,
-                  onPage: _goToPage,
-                ),
-              ],
-            ),
+              );
+            },
           ),
         ),
       ],
@@ -826,22 +848,23 @@ class _Header extends StatelessWidget {
 // ───────────────────────── Banner 158px ─────────────────────────
 
 class _Banner extends StatelessWidget {
-  const _Banner();
+  const _Banner({this.compact = false});
 
-  static const double _h = 140;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
+    final h = compact ? 88.0 : 140.0;
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
       child: SizedBox(
-        height: _h,
+        height: h,
         width: double.infinity,
         child: Image.asset(
           RAssets.homeBanner,
           fit: BoxFit.cover,
           width: double.infinity,
-          height: _h,
+          height: h,
           filterQuality: FilterQuality.high,
           // Positive Y shows more of the villas/road (was clipping the bottom).
           alignment: const Alignment(0, 0.55),
@@ -861,6 +884,7 @@ class _QuickCustomerCreate extends StatelessWidget {
     required this.salesId,
     required this.onSales,
     required this.onCreate,
+    this.compact = false,
   });
 
   final List<AppUser> sales;
@@ -869,15 +893,18 @@ class _QuickCustomerCreate extends StatelessWidget {
   final String? salesId;
   final ValueChanged<String?> onSales;
   final VoidCallback onCreate;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
+    final gap = compact ? 8.0 : 13.0;
+    final topGap = compact ? 10.0 : 18.0;
     return Directionality(
       textDirection: ui.TextDirection.rtl,
       child: Container(
-        width: 263,
-        height: 322,
-        padding: const EdgeInsets.fromLTRB(11, 20, 11, 16),
+        width: compact ? 240 : 263,
+        height: compact ? 268 : 322,
+        padding: EdgeInsets.fromLTRB(11, compact ? 12 : 20, 11, compact ? 10 : 16),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
@@ -888,37 +915,37 @@ class _QuickCustomerCreate extends StatelessWidget {
             Row(
               children: [
                 Container(
-                  width: 52,
-                  height: 46,
+                  width: compact ? 42 : 52,
+                  height: compact ? 38 : 46,
                   decoration: BoxDecoration(
                     color: ReceptionTokens.plusBg,
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: Center(child: RAssets.svg('dc_plus', w: 28, h: 28)),
+                  child: Center(child: RAssets.svg('dc_plus', w: compact ? 22 : 28, h: compact ? 22 : 28)),
                 ),
                 const SizedBox(width: 8),
-                const Expanded(
+                Expanded(
                   child: Text(
                     'انشاء ملف زبون سريع',
                     textAlign: TextAlign.right,
                     style: TextStyle(
                       color: ReceptionTokens.navy,
                       fontWeight: FontWeight.w700,
-                      fontSize: 16,
+                      fontSize: compact ? 14 : 16,
                       height: 1.2,
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 18),
+            SizedBox(height: topGap),
             _field(
               name,
               'ادخل اسم الزبون......',
               RAssets.svg('dc_person', w: 15, h: 24),
               formatters: [PersonNameInputFormatter()],
             ),
-            const SizedBox(height: 13),
+            SizedBox(height: gap),
             _field(
               phone,
               '07xxxxxxxxx',
@@ -926,7 +953,7 @@ class _QuickCustomerCreate extends StatelessWidget {
               keyboard: TextInputType.phone,
               formatters: [IraqPhoneInputFormatter()],
             ),
-            const SizedBox(height: 13),
+            SizedBox(height: gap),
             Container(
               height: 44,
               padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -958,17 +985,9 @@ class _QuickCustomerCreate extends StatelessWidget {
                             .map(
                               (u) => DropdownMenuItem(
                                 value: u.id,
-                                child: Row(
-                                  children: [
-                                    StaffAvatar(user: u, radius: 12),
-                                    const SizedBox(width: 8),
-                                    Flexible(
-                                      child: Text(
-                                        u.fullName,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ],
+                                child: Text(
+                                  u.fullName,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                             )
@@ -1068,19 +1087,26 @@ class _QuickCustomerCreate extends StatelessWidget {
 // ───────────────────────── Stats 268×86 ─────────────────────────
 
 class _Stats extends StatelessWidget {
-  const _Stats({required this.total, required this.done, required this.left});
+  const _Stats({
+    required this.total,
+    required this.done,
+    required this.left,
+    this.compact = false,
+  });
   final int total;
   final int done;
   final int left;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
+    final gap = compact ? 10.0 : 16.0;
     return Row(
       children: [
         Expanded(child: _card('$left حجز', 'عدد الحجوزات المتبقية')),
-        const SizedBox(width: 16),
+        SizedBox(width: gap),
         Expanded(child: _card('$done حجز', 'عدد الحجوزات المكتملة')),
-        const SizedBox(width: 16),
+        SizedBox(width: gap),
         Expanded(child: _card('$total حجز', 'عدد الحجوزات اليوم')),
       ],
     );
@@ -1088,8 +1114,8 @@ class _Stats extends StatelessWidget {
 
   Widget _card(String value, String label) {
     return Container(
-      height: 86,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      height: compact ? 64 : 86,
+      padding: EdgeInsets.symmetric(horizontal: compact ? 10 : 16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -1104,37 +1130,44 @@ class _Stats extends StatelessWidget {
               children: [
                 Text(
                   value,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: ReceptionTokens.navy,
                     fontWeight: FontWeight.w700,
-                    fontSize: 16,
+                    fontSize: compact ? 14 : 16,
                   ),
                 ),
-                const SizedBox(height: 10),
+                SizedBox(height: compact ? 4 : 10),
                 Text(
                   label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: ReceptionTokens.navy.withValues(alpha: 0.7),
                     fontWeight: FontWeight.w600,
-                    fontSize: 14,
+                    fontSize: compact ? 11 : 14,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: compact ? 6 : 10),
           Stack(
             alignment: Alignment.center,
             children: [
               Container(
-                width: 44.4,
-                height: 44.4,
+                width: compact ? 34 : 44.4,
+                height: compact ? 34 : 44.4,
                 decoration: BoxDecoration(
                   color: ReceptionTokens.teal.withValues(alpha: 0.23),
-                  borderRadius: BorderRadius.circular(17.76),
+                  borderRadius: BorderRadius.circular(compact ? 12 : 17.76),
                 ),
               ),
-              Image.asset(RAssets.statIcon, width: 27, height: 27, fit: BoxFit.contain),
+              Image.asset(
+                RAssets.statIcon,
+                width: compact ? 20 : 27,
+                height: compact ? 20 : 27,
+                fit: BoxFit.contain,
+              ),
             ],
           ),
         ],
@@ -1151,12 +1184,14 @@ class _TableFilters extends StatelessWidget {
     required this.dateFilter,
     required this.onStatus,
     required this.onDate,
+    this.compact = false,
   });
 
   final BookingStatus? statusFilter;
   final DateTime? dateFilter;
   final ValueChanged<BookingStatus?> onStatus;
   final ValueChanged<DateTime?> onDate;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -1196,6 +1231,10 @@ class _TableFilters extends StatelessWidget {
                       title: Text(BookingStatus.approved.label),
                       onTap: () => Navigator.pop(c, BookingStatus.approved),
                     ),
+                    ListTile(
+                      title: Text(BookingStatus.noShow.label),
+                      onTap: () => Navigator.pop(c, BookingStatus.noShow),
+                    ),
                   ],
                 ),
               ),
@@ -1221,8 +1260,8 @@ class _TableFilters extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        width: 192,
-        height: 50,
+        width: compact ? 160 : 192,
+        height: compact ? 40 : 50,
         padding: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
           color: Colors.white,
@@ -1232,13 +1271,13 @@ class _TableFilters extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            RAssets.svg('dc_chevron', w: 23, h: 23),
+            RAssets.svg('dc_chevron', w: compact ? 18 : 23, h: compact ? 18 : 23),
             Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 color: ReceptionTokens.navy,
                 fontWeight: FontWeight.w600,
-                fontSize: 14,
+                fontSize: compact ? 12 : 14,
               ),
             ),
           ],
@@ -1256,6 +1295,7 @@ class _BookingsTable extends StatelessWidget {
     required this.loading,
     required this.onApprove,
     required this.onProfile,
+    this.compact = false,
   });
 
   final List<Booking> rows;
@@ -1264,15 +1304,21 @@ class _BookingsTable extends StatelessWidget {
   final bool loading;
   final ValueChanged<Booking> onApprove;
   final ValueChanged<Booking> onProfile;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
+    final headerH = compact ? 46.0 : 62.0;
+    final rowVPad = compact ? 4.0 : 8.0;
+    final rowGap = compact ? 1.0 : 3.0;
+    final avatarR = compact ? 11.0 : 14.0;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // Header container — Figma: drop shadow #069BAF 23%, blur 10, x0 y0
         Container(
-          height: 62,
+          height: headerH,
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 8),
           decoration: BoxDecoration(
@@ -1295,7 +1341,7 @@ class _BookingsTable extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: compact ? 6 : 12),
         // Content container
         Expanded(
           child: Container(
@@ -1318,19 +1364,22 @@ class _BookingsTable extends StatelessWidget {
                       )
                     : ListView.builder(
                         controller: scrollController,
-                        padding: const EdgeInsets.fromLTRB(12, 8, 12, 14),
+                        padding: EdgeInsets.fromLTRB(12, compact ? 4 : 8, 12, compact ? 8 : 14),
                         itemCount: rows.length,
                         itemBuilder: (context, i) {
                           final b = rows[i];
-                          final ok = b.status == BookingStatus.approved;
+                          final status = b.effectiveStatus;
+                          final ok = status == BookingStatus.approved;
+                          final missed = status == BookingStatus.noShow ||
+                              status == BookingStatus.cancelled;
                           final d = b.visitDate.toLocal();
                           final date = DateFormat('dd/MM/yyyy').format(d);
                           final time = DateFormat('hh:mm a', 'ar').format(d);
                           final indexLabel =
                               (rowOffset + i + 1).toString().padLeft(2, '0');
                           return Container(
-                            margin: const EdgeInsets.symmetric(vertical: 3),
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                            margin: EdgeInsets.symmetric(vertical: rowGap),
+                            padding: EdgeInsets.symmetric(horizontal: 8, vertical: rowVPad),
                             decoration: BoxDecoration(
                               color: i.isEven ? ReceptionTokens.rowAlt : Colors.transparent,
                               borderRadius: BorderRadius.circular(12),
@@ -1345,14 +1394,18 @@ class _BookingsTable extends StatelessWidget {
                                   flex: 12,
                                   child: Center(
                                     child: ok
-                                        ? _outlineBtn('عرض الملف', () => onProfile(b))
-                                        : _fillBtn('تاكيد الحضور', () => onApprove(b)),
+                                        ? _outlineBtn('عرض الملف', () => onProfile(b), compact: compact)
+                                        : _fillBtn('تاكيد الحضور', () => onApprove(b), compact: compact),
                                   ),
                                 ),
                                 Expanded(
                                   flex: 11,
                                   child: Center(
-                                    child: ok ? _attendedPill() : _pendingPill(),
+                                    child: ok
+                                        ? _attendedPill(compact: compact)
+                                        : missed
+                                            ? _noShowPill(compact: compact)
+                                            : _pendingPill(compact: compact),
                                   ),
                                 ),
                                 Expanded(
@@ -1364,7 +1417,7 @@ class _BookingsTable extends StatelessWidget {
                                       children: [
                                         StaffAvatar(
                                           avatarUrl: b.callCenterAvatarUrl,
-                                          radius: 14,
+                                          radius: avatarR,
                                           backgroundColor: const Color(0xFFE8F0FE),
                                         ),
                                         const SizedBox(width: 8),
@@ -1373,10 +1426,10 @@ class _BookingsTable extends StatelessWidget {
                                             b.callCenterName ?? '—',
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
+                                            style: TextStyle(
                                               color: ReceptionTokens.navy,
                                               fontWeight: FontWeight.w700,
-                                              fontSize: 13,
+                                              fontSize: compact ? 12 : 13,
                                             ),
                                           ),
                                         ),
@@ -1479,13 +1532,13 @@ class _BookingsTable extends StatelessWidget {
 
   /// Figma: hug ~137×41, pad 12, gap 6, r16, fill #FFF, stroke #002E45 0.3,
   /// shadow blur 4 @ 77% #002E45 — icon on the right
-  Widget _outlineBtn(String label, VoidCallback onTap) {
+  Widget _outlineBtn(String label, VoidCallback onTap, {bool compact = false}) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        height: 41,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        height: compact ? 32 : 41,
+        padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 12),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
@@ -1506,14 +1559,14 @@ class _BookingsTable extends StatelessWidget {
               style: TextStyle(
                 color: ReceptionTokens.navy.withValues(alpha: 0.86),
                 fontWeight: FontWeight.w700,
-                fontSize: 14,
+                fontSize: compact ? 12 : 14,
               ),
             ),
-            const SizedBox(width: 6),
+            SizedBox(width: compact ? 4 : 6),
             Image.asset(
               RAssets.viewProfileIcon,
-              width: 22,
-              height: 16,
+              width: compact ? 18 : 22,
+              height: compact ? 13 : 16,
               fit: BoxFit.contain,
             ),
           ],
@@ -1523,14 +1576,14 @@ class _BookingsTable extends StatelessWidget {
   }
 
   /// Figma: 141×40, pad 12, gap 6, r16, fill #002E45 — icon on the right
-  Widget _fillBtn(String label, VoidCallback onTap) {
+  Widget _fillBtn(String label, VoidCallback onTap, {bool compact = false}) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        width: 141,
-        height: 40,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        width: compact ? 120 : 141,
+        height: compact ? 32 : 40,
+        padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 12),
         decoration: BoxDecoration(
           color: ReceptionTokens.navy,
           borderRadius: BorderRadius.circular(16),
@@ -1543,14 +1596,14 @@ class _BookingsTable extends StatelessWidget {
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.9),
                 fontWeight: FontWeight.w700,
-                fontSize: 14,
+                fontSize: compact ? 12 : 14,
               ),
             ),
-            const SizedBox(width: 6),
+            SizedBox(width: compact ? 4 : 6),
             Image.asset(
               RAssets.confirmAttendanceIcon,
-              width: 12,
-              height: 16,
+              width: compact ? 10 : 12,
+              height: compact ? 13 : 16,
               fit: BoxFit.contain,
             ),
           ],
@@ -1560,10 +1613,10 @@ class _BookingsTable extends StatelessWidget {
   }
 
   /// Figma: 98×40 hug, pad 12, gap 6, r16, fill #9FD0C0
-  Widget _attendedPill() {
+  Widget _attendedPill({bool compact = false}) {
     return Container(
-      height: 40,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      height: compact ? 32 : 40,
+      padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 12),
       decoration: BoxDecoration(
         color: ReceptionTokens.statusGreenBg,
         borderRadius: BorderRadius.circular(16),
@@ -1571,26 +1624,61 @@ class _BookingsTable extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text(
+          Text(
             'حضر',
             style: TextStyle(
-              color: ReceptionTokens.statusGreenText,
+              fontSize: compact ? 12 : 14,
               fontWeight: FontWeight.w700,
-              fontSize: 14,
+              color: ReceptionTokens.statusGreenText,
             ),
           ),
-          const SizedBox(width: 6),
-          Image.asset(RAssets.attendedIcon, width: 16, height: 16, fit: BoxFit.contain),
+          SizedBox(width: compact ? 4 : 6),
+          Image.asset(
+            RAssets.attendedIcon,
+            width: compact ? 14 : 16,
+            height: compact ? 14 : 16,
+            fit: BoxFit.contain,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _noShowPill({bool compact = false}) {
+    return Container(
+      height: compact ? 32 : 40,
+      padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 12),
+      decoration: BoxDecoration(
+        color: ReceptionTokens.statusMissedBg,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'لم يحضر',
+            style: TextStyle(
+              fontSize: compact ? 12 : 14,
+              fontWeight: FontWeight.w700,
+              color: ReceptionTokens.statusMissedText,
+            ),
+          ),
+          SizedBox(width: compact ? 4 : 6),
+          Icon(
+            Icons.person_off_rounded,
+            size: compact ? 14 : 16,
+            color: ReceptionTokens.statusMissedText,
+          ),
         ],
       ),
     );
   }
 
   /// Figma: 136×46 hug, pad 12, gap 6, r16, fill #FFE330 @ 40%
-  Widget _pendingPill() {
+  Widget _pendingPill({bool compact = false}) {
     return Container(
-      height: 46,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      height: compact ? 32 : 46,
+      padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 12),
       decoration: BoxDecoration(
         color: ReceptionTokens.statusYellowBg,
         borderRadius: BorderRadius.circular(16),
@@ -1598,16 +1686,21 @@ class _BookingsTable extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text(
+          Text(
             'لم يحضر بعد',
             style: TextStyle(
               color: ReceptionTokens.statusYellowText,
               fontWeight: FontWeight.w700,
-              fontSize: 14,
+              fontSize: compact ? 11 : 14,
             ),
           ),
-          const SizedBox(width: 6),
-          Image.asset(RAssets.pendingIcon, width: 18, height: 18, fit: BoxFit.contain),
+          SizedBox(width: compact ? 4 : 6),
+          Image.asset(
+            RAssets.pendingIcon,
+            width: compact ? 14 : 18,
+            height: compact ? 14 : 18,
+            fit: BoxFit.contain,
+          ),
         ],
       ),
     );

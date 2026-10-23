@@ -1,7 +1,7 @@
-import 'dart:ui' as ui;
+﻿import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import '../../core/app_fonts.dart';
 import 'package:provider/provider.dart';
 
 import '../../controllers/booking_controller.dart';
@@ -159,12 +159,12 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
       isDense: true,
       filled: true,
       fillColor: const Color(0xFFF8FAFD),
-      labelStyle: GoogleFonts.cairo(
+      labelStyle: AppFonts.style(
         fontWeight: FontWeight.w700,
         fontSize: 12,
         color: ReceptionTokens.navy.withValues(alpha: 0.55),
       ),
-      hintStyle: GoogleFonts.cairo(
+      hintStyle: AppFonts.style(
         fontWeight: FontWeight.w600,
         fontSize: 12,
         color: ReceptionTokens.navy.withValues(alpha: 0.35),
@@ -223,7 +223,7 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
                               children: [
                                 TextFormField(
                                   controller: _name,
-                                  style: GoogleFonts.cairo(
+                                  style: AppFonts.style(
                                     fontWeight: FontWeight.w700,
                                     fontSize: 13,
                                     color: _ink,
@@ -244,7 +244,7 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
                                 TextFormField(
                                   controller: _phone,
                                   keyboardType: TextInputType.phone,
-                                  style: GoogleFonts.cairo(
+                                  style: AppFonts.style(
                                     fontWeight: FontWeight.w700,
                                     fontSize: 13,
                                     color: _ink,
@@ -272,7 +272,7 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
                                       size: 18,
                                     ),
                                   ),
-                                  style: GoogleFonts.cairo(
+                                  style: AppFonts.style(
                                     fontWeight: FontWeight.w700,
                                     color: _ink,
                                     fontSize: 13,
@@ -302,7 +302,7 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
                               children: [
                                 Text(
                                   'مصدر الحجز',
-                                  style: GoogleFonts.cairo(
+                                  style: AppFonts.style(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w700,
                                     color: ReceptionTokens.navy
@@ -348,7 +348,7 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
                                               const SizedBox(width: 5),
                                               Text(
                                                 s.label,
-                                                style: GoogleFonts.cairo(
+                                                style: AppFonts.style(
                                                   fontSize: 11,
                                                   fontWeight: FontWeight.w800,
                                                   color: active
@@ -399,7 +399,7 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
                                               children: [
                                                 Text(
                                                   'تاريخ الحضور',
-                                                  style: GoogleFonts.cairo(
+                                                  style: AppFonts.style(
                                                     fontSize: 11,
                                                     fontWeight: FontWeight.w700,
                                                     color: ReceptionTokens.navy
@@ -409,7 +409,7 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
                                                 ),
                                                 Text(
                                                   formatDateTime(_visitDate),
-                                                  style: GoogleFonts.cairo(
+                                                  style: AppFonts.style(
                                                     fontSize: 13,
                                                     fontWeight: FontWeight.w800,
                                                     color: _ink,
@@ -432,7 +432,7 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
                                 TextFormField(
                                   controller: _notes,
                                   maxLines: 2,
-                                  style: GoogleFonts.cairo(
+                                  style: AppFonts.style(
                                     fontWeight: FontWeight.w600,
                                     fontSize: 13,
                                     color: _ink,
@@ -488,7 +488,7 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
                                           )
                                         : Text(
                                             'حفظ الحجز',
-                                            style: GoogleFonts.cairo(
+                                            style: AppFonts.style(
                                               fontSize: 14,
                                               fontWeight: FontWeight.w800,
                                               color: Colors.white,
@@ -526,7 +526,7 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
         children: [
           Text(
             title,
-            style: GoogleFonts.cairo(
+            style: AppFonts.style(
               fontSize: 13,
               fontWeight: FontWeight.w800,
               color: _ink,
@@ -554,7 +554,7 @@ class _DialogHeader extends StatelessWidget {
           Expanded(
             child: Text(
               'إضافة حجز جديد',
-              style: GoogleFonts.cairo(
+              style: AppFonts.style(
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
                 color: const Color(0xFF123B70),

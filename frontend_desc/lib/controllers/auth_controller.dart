@@ -16,12 +16,30 @@ class AuthController extends ChangeNotifier {
 
   bool get isLoggedIn => user != null;
 
+  /// Open app immediately from local cache, then quietly refresh from server.
   Future<void> bootstrap() async {
     bootstrapping = true;
     notifyListeners();
-    user = await _authService.restoreSession();
+
+    user = await _authService.restoreLocalSession();
     bootstrapping = false;
     notifyListeners();
+
+    if (user == null) return;
+
+    try {
+      final refreshed = await _authService.refreshSession();
+      if (refreshed != null) {
+        user = refreshed;
+        notifyListeners();
+      } else {
+        // Token rejected by server.
+        user = null;
+        notifyListeners();
+      }
+    } catch (_) {
+      // Keep local session on weak/offline network.
+    }
   }
 
   Future<bool> login(String username, String password) async {
@@ -39,7 +57,7 @@ class AuthController extends ChangeNotifier {
       notifyListeners();
       return false;
     } catch (_) {
-      error = 'تعذر الاتصال بالخادم';
+      error = 'تعذر الاتصال بالخادم — تحقق من الإنترنت';
       loading = false;
       notifyListeners();
       return false;

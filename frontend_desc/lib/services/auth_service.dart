@@ -27,20 +27,36 @@ class AuthService {
     return user;
   }
 
-  Future<AppUser?> restoreSession() async {
+  /// Instant local restore (no network). Returns null if nothing saved.
+  Future<AppUser?> restoreLocalSession() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString(AppConstants.tokenKey);
     final userRaw = prefs.getString(AppConstants.userKey);
     if (token == null || userRaw == null) return null;
     _api.setToken(token);
     try {
-      final me = await _api.get('/api/auth/me') as Map<String, dynamic>;
-      final user = AppUser.fromJson(me);
-      await prefs.setString(AppConstants.userKey, jsonEncode(user.toJson()));
-      return user;
+      return AppUser.fromJson(jsonDecode(userRaw) as Map<String, dynamic>);
     } catch (_) {
       await logout();
       return null;
+    }
+  }
+
+  /// Confirm token with server and refresh cached user. Returns null if invalid.
+  Future<AppUser?> refreshSession() async {
+    try {
+      final me = await _api.get('/api/auth/me') as Map<String, dynamic>;
+      final user = AppUser.fromJson(me);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(AppConstants.userKey, jsonEncode(user.toJson()));
+      return user;
+    } on ApiException catch (e) {
+      if (e.statusCode == 401 || e.statusCode == 403) {
+        await logout();
+        return null;
+      }
+      // Network/server hiccup — keep local session.
+      rethrow;
     }
   }
 

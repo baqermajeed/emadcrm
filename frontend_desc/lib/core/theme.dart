@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+
+import 'app_fonts.dart';
 
 class AppTheme {
   static const Color primary = Color(0xFF1B4D3E);
@@ -13,6 +14,7 @@ class AppTheme {
     final base = ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
+      fontFamily: AppFonts.family,
       colorScheme: ColorScheme.fromSeed(
         seedColor: primary,
         primary: primary,
@@ -23,13 +25,13 @@ class AppTheme {
     );
 
     return base.copyWith(
-      textTheme: GoogleFonts.cairoTextTheme(base.textTheme),
+      textTheme: AppFonts.textTheme(base.textTheme),
       appBarTheme: AppBarTheme(
         backgroundColor: primary,
         foregroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
-        titleTextStyle: GoogleFonts.cairo(
+        titleTextStyle: AppFonts.style(
           fontSize: 18,
           fontWeight: FontWeight.w700,
           color: Colors.white,
@@ -63,7 +65,7 @@ class AppTheme {
           foregroundColor: Colors.white,
           minimumSize: const Size.fromHeight(48),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          textStyle: GoogleFonts.cairo(fontWeight: FontWeight.w700, fontSize: 15),
+          textStyle: AppFonts.style(fontWeight: FontWeight.w700, fontSize: 15),
         ),
       ),
       floatingActionButtonTheme: const FloatingActionButtonThemeData(

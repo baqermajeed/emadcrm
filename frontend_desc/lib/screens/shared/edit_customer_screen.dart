@@ -1,4 +1,4 @@
-import 'dart:ui' as ui;
+﻿import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -13,7 +13,6 @@ import '../../services/user_service.dart';
 import '../../utils/enums.dart';
 import '../../utils/validators.dart';
 import '../../widgets/reception/reception_assets.dart';
-import '../../widgets/staff_avatar.dart';
 
 class EditCustomerScreen extends StatefulWidget {
   const EditCustomerScreen({super.key, this.customer});
@@ -55,6 +54,7 @@ class _EditCustomerScreenState extends State<EditCustomerScreen> {
   CustomerGender _gender = CustomerGender.male;
   String? _salesId;
   List<AppUser> _sales = [];
+  bool _loadingSales = true;
   bool _saving = false;
 
   static const _navy = Color(0xFF002E45);
@@ -80,9 +80,26 @@ class _EditCustomerScreenState extends State<EditCustomerScreen> {
 
   Future<void> _loadSales() async {
     try {
-      _sales = await UserService(context.read<ApiClient>()).list(role: UserRole.sales);
-      if (mounted) setState(() {});
-    } catch (_) {}
+      final list =
+          await UserService(context.read<ApiClient>()).list(role: UserRole.sales);
+      if (!mounted) return;
+      setState(() {
+        _sales = list;
+        // تجنب تعليق الـ Dropdown إذا كان الموظف غير موجود في القائمة
+        if (_salesId != null && !_sales.any((u) => u.id == _salesId)) {
+          _salesId = null;
+        }
+        _loadingSales = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loadingSales = false);
+    }
+  }
+
+  String? get _safeSalesId {
+    if (_salesId == null) return null;
+    if (_sales.any((u) => u.id == _salesId)) return _salesId;
+    return null;
   }
 
   @override
@@ -383,32 +400,46 @@ class _EditCustomerScreenState extends State<EditCustomerScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
                                   _label('موظف المبيعات'),
-                                  DropdownButtonFormField<String>(
-                                    initialValue: _salesId,
-                                    decoration: _decoration(hint: 'اختر الموظف'),
-                                    style: _fieldStyle(),
-                                    items: _sales
-                                        .map(
-                                          (u) => DropdownMenuItem(
+                                  if (_loadingSales)
+                                    InputDecorator(
+                                      decoration: _decoration(hint: 'جاري التحميل...'),
+                                      child: const SizedBox(
+                                        height: 20,
+                                        child: Align(
+                                          alignment: Alignment.centerRight,
+                                          child: SizedBox(
+                                            width: 18,
+                                            height: 18,
+                                            child: CircularProgressIndicator(strokeWidth: 2),
+                                          ),
+                                        ),
+                                      ),
+                                    )
+                                  else
+                                    DropdownButtonFormField<String?>(
+                                      key: ValueKey('sales-${_sales.length}-$_safeSalesId'),
+                                      initialValue: _safeSalesId,
+                                      decoration: _decoration(hint: 'اختر الموظف'),
+                                      style: _fieldStyle(),
+                                      isExpanded: true,
+                                      items: [
+                                        DropdownMenuItem<String?>(
+                                          value: null,
+                                          child: Text('اختر الموظف', style: _fieldStyle()),
+                                        ),
+                                        ..._sales.map(
+                                          (u) => DropdownMenuItem<String?>(
                                             value: u.id,
-                                            child: Row(
-                                              children: [
-                                                StaffAvatar(user: u, radius: 12),
-                                                const SizedBox(width: 8),
-                                                Flexible(
-                                                  child: Text(
-                                                    u.fullName,
-                                                    style: _fieldStyle(),
-                                                    overflow: TextOverflow.ellipsis,
-                                                  ),
-                                                ),
-                                              ],
+                                            child: Text(
+                                              u.fullName,
+                                              style: _fieldStyle(),
+                                              overflow: TextOverflow.ellipsis,
                                             ),
                                           ),
-                                        )
-                                        .toList(),
-                                    onChanged: (v) => setState(() => _salesId = v),
-                                  ),
+                                        ),
+                                      ],
+                                      onChanged: (v) => setState(() => _salesId = v),
+                                    ),
                                 ],
                               ),
                             ),
@@ -418,18 +449,24 @@ class _EditCustomerScreenState extends State<EditCustomerScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
                                   _label('من أين عرفت المركز'),
-                                  DropdownButtonFormField<HowKnewCenter>(
+                                  DropdownButtonFormField<HowKnewCenter?>(
+                                    key: ValueKey('howKnew-$_howKnew'),
                                     initialValue: _howKnew,
                                     decoration: _decoration(hint: 'اختر المصدر'),
                                     style: _fieldStyle(),
-                                    items: HowKnewCenter.values
-                                        .map(
-                                          (e) => DropdownMenuItem(
-                                            value: e,
-                                            child: Text(e.label, style: _fieldStyle()),
-                                          ),
-                                        )
-                                        .toList(),
+                                    isExpanded: true,
+                                    items: [
+                                      DropdownMenuItem<HowKnewCenter?>(
+                                        value: null,
+                                        child: Text('اختر المصدر', style: _fieldStyle()),
+                                      ),
+                                      ...HowKnewCenter.values.map(
+                                        (e) => DropdownMenuItem<HowKnewCenter?>(
+                                          value: e,
+                                          child: Text(e.label, style: _fieldStyle()),
+                                        ),
+                                      ),
+                                    ],
                                     onChanged: (v) => setState(() => _howKnew = v),
                                   ),
                                 ],

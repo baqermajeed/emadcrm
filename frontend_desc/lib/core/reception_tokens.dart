@@ -13,6 +13,8 @@ class ReceptionTokens {
   static const Color statusGreenText = Color(0xFF00661B);
   static const Color statusYellowBg = Color(0x66FFE330);
   static const Color statusYellowText = Color(0xFFFFAE4C);
+  static const Color statusMissedBg = Color(0xFFE8EDF0);
+  static const Color statusMissedText = Color(0xFF5B6B75);
   static const Color muted = Color(0x80002E45);
   static const Color fieldBorder = Color(0x66002E45);
 

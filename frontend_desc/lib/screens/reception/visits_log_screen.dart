@@ -1,4 +1,4 @@
-import 'dart:io' show Platform, Process;
+﻿import 'dart:io' show Platform, Process;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -81,21 +81,13 @@ class _VisitsLogScreenState extends State<VisitsLogScreen> {
 
   /// Pending and visit date is still today or in the future.
   bool _isUpcomingPending(Booking b) {
-    if (b.status != BookingStatus.pending) return false;
-    final now = DateTime.now();
-    final d = b.visitDate.toLocal();
-    final today = DateTime(now.year, now.month, now.day);
-    final visitDay = DateTime(d.year, d.month, d.day);
-    return !visitDay.isBefore(today);
+    return b.effectiveStatus == BookingStatus.pending;
   }
 
   /// Cancelled, no-show, or pending whose date has passed.
   bool _isMissedOrCancelled(Booking b) {
-    if (b.status == BookingStatus.cancelled || b.status == BookingStatus.noShow) {
-      return true;
-    }
-    if (b.status != BookingStatus.pending) return false;
-    return !_isUpcomingPending(b);
+    final s = b.effectiveStatus;
+    return s == BookingStatus.cancelled || s == BookingStatus.noShow;
   }
 
   String? _salesIdForBooking(Booking b, CustomerController customers) {
@@ -1262,32 +1254,16 @@ class _VisitsTable extends StatelessWidget {
       fg = const Color(0xFFB91C1C);
       icon = Icons.cancel_rounded;
       label = 'ملغاة';
-    } else if (b.status == BookingStatus.noShow) {
-      bg = const Color(0xFFFEE2E2);
-      fg = const Color(0xFFB91C1C);
-      icon = Icons.close_rounded;
+    } else if (b.effectiveStatus == BookingStatus.noShow) {
+      bg = const Color(0xFFE8EDF0);
+      fg = const Color(0xFF5B6B75);
+      icon = Icons.person_off_rounded;
       label = 'لم يحضر';
     } else {
-      final now = DateTime.now();
-      final d = b.visitDate.toLocal();
-      final today = DateTime(now.year, now.month, now.day);
-      final visitDay = DateTime(d.year, d.month, d.day);
-      if (visitDay.isBefore(today)) {
-        bg = const Color(0xFFFEE2E2);
-        fg = const Color(0xFFB91C1C);
-        icon = Icons.close_rounded;
-        label = 'لم يحضر';
-      } else if (_sameDay(visitDay, today)) {
-        bg = const Color(0xFFFFEDD5);
-        fg = const Color(0xFFC2410C);
-        icon = Icons.access_time_filled_rounded;
-        label = 'قيد الزيارة';
-      } else {
-        bg = const Color(0xFFFFEDD5);
-        fg = const Color(0xFFC2410C);
-        icon = Icons.access_time_filled_rounded;
-        label = 'قيد الزيارة';
-      }
+      bg = const Color(0xFFFFEDD5);
+      fg = const Color(0xFFC2410C);
+      icon = Icons.access_time_filled_rounded;
+      label = 'قيد الزيارة';
     }
 
     return _GlassShimmerChip(

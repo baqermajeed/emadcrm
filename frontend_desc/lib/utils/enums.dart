@@ -82,8 +82,8 @@ extension BookingStatusX on BookingStatus {
       };
 
   String get label => switch (this) {
-        BookingStatus.pending => 'بانتظار الحضور',
-        BookingStatus.approved => 'تم الحضور',
+        BookingStatus.pending => 'لم يحضر بعد',
+        BookingStatus.approved => 'حضر',
         BookingStatus.cancelled => 'ملغي',
         BookingStatus.noShow => 'لم يحضر',
       };

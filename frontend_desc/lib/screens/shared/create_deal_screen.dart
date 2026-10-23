@@ -1,4 +1,4 @@
-import 'dart:ui' as ui;
+﻿import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -16,6 +16,7 @@ import '../../utils/enums.dart';
 import '../../utils/formatters.dart';
 import '../../utils/validators.dart';
 import '../../widgets/reception/reception_assets.dart';
+import '../../widgets/staff_avatar.dart';
 
 /// Modal matching the Figma deal dashboard — villa sidebar + form.
 class CreateDealScreen extends StatefulWidget {
@@ -476,10 +477,10 @@ class _CreateDealScreenState extends State<CreateDealScreen> {
                       children: [
                         Expanded(
                           child: _labeledField(
-                            'موظف الاستقبال',
-                            child: _readonlyBox(
-                              icon: Icons.badge_outlined,
-                              text: 'موظف الاستقبال',
+                            'موظف الكول سنتر',
+                            child: _staffReadonlyBox(
+                              name: widget.customer.callCenterName ?? '—',
+                              avatarUrl: widget.customer.callCenterAvatarUrl,
                             ),
                           ),
                         ),
@@ -487,9 +488,9 @@ class _CreateDealScreenState extends State<CreateDealScreen> {
                         Expanded(
                           child: _labeledField(
                             'موظف المبيعات',
-                            child: _readonlyBox(
-                              icon: Icons.person_outline_rounded,
-                              text: widget.customer.salesEmployeeName ?? '—',
+                            child: _staffReadonlyBox(
+                              name: widget.customer.salesEmployeeName ?? '—',
+                              avatarUrl: widget.customer.salesEmployeeAvatarUrl,
                             ),
                           ),
                         ),
@@ -800,14 +801,26 @@ class _CreateDealScreenState extends State<CreateDealScreen> {
     );
   }
 
-  Widget _readonlyBox({required IconData icon, required String text}) {
+  Widget _staffReadonlyBox({required String name, String? avatarUrl}) {
     return InputDecorator(
-      decoration: _dec(prefixIcon: Icon(icon, size: 18, color: const Color(0xFF64748B))),
-      child: Text(
-        text,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: GoogleFonts.cairo(fontWeight: FontWeight.w600, fontSize: 13, color: _navy),
+      decoration: _dec(),
+      child: Row(
+        children: [
+          StaffAvatar(avatarUrl: avatarUrl, radius: 14),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.cairo(
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+                color: _navy,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

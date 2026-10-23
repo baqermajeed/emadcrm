@@ -1,7 +1,7 @@
-import 'dart:ui' as ui;
+﻿import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import '../../core/app_fonts.dart';
 
 import '../../core/reception_tokens.dart';
 import 'reception_assets.dart';
@@ -376,7 +376,7 @@ class _SuggestionsPanel extends StatelessWidget {
                     child: Text(
                       'اقتراحات البحث',
                       textAlign: TextAlign.right,
-                      style: GoogleFonts.cairo(
+                      style: AppFonts.style(
                         fontSize: 12.5,
                         fontWeight: FontWeight.w800,
                         color: ReceptionTokens.navy,
@@ -385,7 +385,7 @@ class _SuggestionsPanel extends StatelessWidget {
                   ),
                   Text(
                     '${items.length}',
-                    style: GoogleFonts.cairo(
+                    style: AppFonts.style(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
                       color: ReceptionTokens.teal,
@@ -502,7 +502,7 @@ class _HighlightedLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final base = GoogleFonts.cairo(
+    final base = AppFonts.style(
       fontSize: 13.5,
       fontWeight: FontWeight.w700,
       color: ReceptionTokens.navy,

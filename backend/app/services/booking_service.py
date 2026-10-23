@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from fastapi import HTTPException, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
@@ -15,6 +17,28 @@ class BookingService:
         self.customers = db[Collections.CUSTOMERS]
         self.visits = db[Collections.VISITS]
         self.users = UserService(db)
+
+    async def expire_no_shows(self) -> int:
+        """Mark pending bookings as no-show 24 hours after the appointment."""
+        now = utcnow()
+        cutoff = now - timedelta(hours=24)
+        cutoff_naive = cutoff.replace(tzinfo=None)
+        result = await self.col.update_many(
+            {
+                "status": BookingStatus.PENDING.value,
+                "$or": [
+                    {"visit_date": {"$lte": cutoff}},
+                    {"visit_date": {"$lte": cutoff_naive}},
+                ],
+            },
+            {
+                "$set": {
+                    "status": BookingStatus.NO_SHOW.value,
+                    "updated_at": now,
+                }
+            },
+        )
+        return int(result.modified_count)
 
     async def _enrich(self, docs: list[dict]) -> list[dict]:
         ids = list({d.get("call_center_id") for d in docs if d.get("call_center_id")})
@@ -88,6 +112,7 @@ class BookingService:
         if call_center_id:
             query["call_center_id"] = call_center_id
 
+        await self.expire_no_shows()
         total = await self.col.count_documents(query)
         skip = (page - 1) * page_size
         cursor = self.col.find(query).sort("visit_date", -1).skip(skip).limit(page_size)
@@ -95,6 +120,7 @@ class BookingService:
         return await self._enrich(docs), total
 
     async def get(self, booking_id: str) -> dict:
+        await self.expire_no_shows()
         doc = await self.col.find_one({"_id": oid(booking_id, "booking")})
         if not doc:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Booking not found")
@@ -121,7 +147,10 @@ class BookingService:
 
     async def approve(self, booking_id: str, data: BookingApprove, reception: dict) -> dict:
         booking = await self.get(booking_id)
-        if booking["status"] != BookingStatus.PENDING.value:
+        if booking["status"] not in (
+            BookingStatus.PENDING.value,
+            BookingStatus.NO_SHOW.value,
+        ):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Booking already processed")
 
         sales = await self.users.get_by_id(data.sales_employee_id)

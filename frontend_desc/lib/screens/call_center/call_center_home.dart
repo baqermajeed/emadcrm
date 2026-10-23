@@ -1,4 +1,4 @@
-import 'dart:io' show Platform, Process;
+﻿import 'dart:io' show Platform, Process;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -55,11 +55,11 @@ class _CallCenterHomeState extends State<CallCenterHome> {
       if (_statusFilter != null) {
         // «لم يحضر» includes cancelled + no-show.
         if (_statusFilter == BookingStatus.noShow) {
-          if (b.status != BookingStatus.noShow &&
-              b.status != BookingStatus.cancelled) {
+          if (b.effectiveStatus != BookingStatus.noShow &&
+              b.effectiveStatus != BookingStatus.cancelled) {
             return false;
           }
-        } else if (b.status != _statusFilter) {
+        } else if (b.effectiveStatus != _statusFilter) {
           return false;
         }
       }
@@ -188,13 +188,13 @@ class _CallCenterHomeState extends State<CallCenterHome> {
 
     final total = ctrl.items.length;
     final pending =
-        ctrl.items.where((b) => b.status == BookingStatus.pending).length;
+        ctrl.items.where((b) => b.effectiveStatus == BookingStatus.pending).length;
     final attended =
-        ctrl.items.where((b) => b.status == BookingStatus.approved).length;
+        ctrl.items.where((b) => b.effectiveStatus == BookingStatus.approved).length;
     final missed = ctrl.items
         .where((b) =>
-            b.status == BookingStatus.cancelled ||
-            b.status == BookingStatus.noShow)
+            b.effectiveStatus == BookingStatus.cancelled ||
+            b.effectiveStatus == BookingStatus.noShow)
         .length;
 
     // Layout follows reception: sidebar on the right (LTR shell).
@@ -775,7 +775,7 @@ class _FiltersRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final chips = <(BookingStatus?, String)>[
       (null, 'الكل'),
-      (BookingStatus.approved, 'تم الحضور'),
+      (BookingStatus.approved, 'حضر'),
       (BookingStatus.pending, 'لم يحضر بعد'),
       (BookingStatus.noShow, 'لم يحضر'),
     ];
@@ -1051,7 +1051,7 @@ class _BookingsTable extends StatelessWidget {
     );
     final date = DateFormat('dd/MM/yyyy').format(b.visitDate.toLocal());
     final time = DateFormat('hh:mm a', 'ar').format(b.visitDate.toLocal());
-    final (bg, fg) = _statusColors(b.status);
+    final (bg, fg) = _statusColors(b.effectiveStatus);
 
     return Container(
       height: _rowH,
@@ -1148,7 +1148,7 @@ class _BookingsTable extends StatelessWidget {
             child: _GlassShimmerChip(
               bg: bg,
               fg: fg,
-              label: _statusLabel(b.status),
+              label: _statusLabel(b.effectiveStatus),
             ),
           ),
         ),
@@ -1210,7 +1210,7 @@ class _BookingsTable extends StatelessWidget {
   }
 
   String _statusLabel(BookingStatus s) => switch (s) {
-        BookingStatus.approved => 'تم الحضور',
+        BookingStatus.approved => 'حضر',
         BookingStatus.pending => 'لم يحضر بعد',
         BookingStatus.cancelled || BookingStatus.noShow => 'لم يحضر',
       };
@@ -1229,8 +1229,8 @@ class _BookingsTable extends StatelessWidget {
             const Color(0xFFB91C1C),
           ),
         BookingStatus.noShow => (
-            const Color(0xFFE5E7EB),
-            const Color(0xFF4B5563),
+            ReceptionTokens.statusMissedBg,
+            ReceptionTokens.statusMissedText,
           ),
       };
 

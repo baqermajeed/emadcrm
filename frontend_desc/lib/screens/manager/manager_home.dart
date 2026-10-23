@@ -1,5 +1,5 @@
-import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+﻿import 'package:flutter/material.dart';
+import '../../core/app_fonts.dart';
 import 'package:provider/provider.dart';
 
 import '../../controllers/report_controller.dart';
@@ -201,7 +201,7 @@ class _NavChip extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 label,
-                style: GoogleFonts.cairo(
+                style: AppFonts.style(
                   color: Colors.white,
                   fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
                   fontSize: 14,

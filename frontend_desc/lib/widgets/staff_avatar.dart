@@ -38,6 +38,9 @@ class StaffAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final url = resolveUrl(avatarUrl ?? user?.avatarUrl);
     final size = radius * 2;
+    // Oversample for sharp display on high-DPI / Windows scaling.
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final cachePx = (size * dpr * 2).round().clamp(96, 512);
 
     if (url == null) {
       return CircleAvatar(
@@ -53,6 +56,13 @@ class StaffAvatar extends StatelessWidget {
         width: size,
         height: size,
         fit: BoxFit.cover,
+        filterQuality: FilterQuality.high,
+        memCacheWidth: cachePx,
+        memCacheHeight: cachePx,
+        maxWidthDiskCache: 512,
+        maxHeightDiskCache: 512,
+        fadeInDuration: Duration.zero,
+        fadeOutDuration: Duration.zero,
         placeholder: (_, _) => Container(
           width: size,
           height: size,
