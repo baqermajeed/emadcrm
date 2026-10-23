@@ -118,4 +118,17 @@ class LiveSummary {
         totalDeals: json['total_deals'] as int? ?? 0,
         activeReservations: json['active_reservations'] as int? ?? 0,
       );
+
+  Map<String, dynamic> toJson() => {
+        'total_bookings': totalBookings,
+        'pending_bookings': pendingBookings,
+        'approved_bookings': approvedBookings,
+        'missed_bookings': missedBookings,
+        'today_bookings': todayBookings,
+        'total_confirmed_visits': totalConfirmedVisits,
+        'today_confirmed_visits': todayConfirmedVisits,
+        'total_customers': totalCustomers,
+        'total_deals': totalDeals,
+        'active_reservations': activeReservations,
+      };
 }

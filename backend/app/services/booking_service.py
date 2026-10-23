@@ -1,5 +1,4 @@
-from datetime import timedelta
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -138,17 +137,23 @@ class BookingService:
                 return [], 0
             query["customer_id"] = {"$in": customer_ids}
 
-        date_query: dict = {}
-        if from_date:
-            parsed = self._parse_iso_datetime(from_date)
-            if parsed:
-                date_query["$gte"] = parsed
-        if to_date:
-            parsed = self._parse_iso_datetime(to_date)
-            if parsed:
-                date_query["$lte"] = parsed
-        if date_query:
-            query["visit_date"] = date_query
+        date_clause = self._build_dual_date_clause(
+            field="visit_date",
+            from_raw=from_date,
+            to_raw=to_date,
+        )
+        if date_clause:
+            if "$or" in query:
+                search_or = query.pop("$or")
+                base = query.copy()
+                and_parts = []
+                if base:
+                    and_parts.append(base)
+                and_parts.append({"$or": search_or})
+                and_parts.append(date_clause)
+                query = {"$and": and_parts}
+            else:
+                query.update(date_clause)
 
         await self.expire_no_shows()
         total = await self.col.count_documents(query)
@@ -164,6 +169,49 @@ class BookingService:
             return datetime.fromisoformat(raw.replace("Z", "+00:00"))
         except ValueError:
             return None
+
+    @classmethod
+    def _build_dual_date_clause(
+        cls,
+        *,
+        field: str,
+        from_raw: str | None,
+        to_raw: str | None,
+    ) -> dict | None:
+        parsed_from = cls._parse_iso_datetime(from_raw) if from_raw else None
+        parsed_to = cls._parse_iso_datetime(to_raw) if to_raw else None
+        if parsed_from is None and parsed_to is None:
+            return None
+
+        aware_range: dict = {}
+        naive_range: dict = {}
+
+        if parsed_from is not None:
+            if parsed_from.tzinfo is None:
+                aware_from = parsed_from.replace(tzinfo=UTC)
+                naive_from = parsed_from
+            else:
+                aware_from = parsed_from.astimezone(UTC)
+                naive_from = parsed_from.astimezone(UTC).replace(tzinfo=None)
+            aware_range["$gte"] = aware_from
+            naive_range["$gte"] = naive_from
+
+        if parsed_to is not None:
+            if parsed_to.tzinfo is None:
+                aware_to = parsed_to.replace(tzinfo=UTC)
+                naive_to = parsed_to
+            else:
+                aware_to = parsed_to.astimezone(UTC)
+                naive_to = parsed_to.astimezone(UTC).replace(tzinfo=None)
+            aware_range["$lte"] = aware_to
+            naive_range["$lte"] = naive_to
+
+        return {
+            "$or": [
+                {field: aware_range},
+                {field: naive_range},
+            ]
+        }
 
     async def get(self, booking_id: str) -> dict:
         await self.expire_no_shows()

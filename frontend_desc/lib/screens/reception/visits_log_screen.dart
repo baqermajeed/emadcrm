@@ -14,6 +14,8 @@ import '../../controllers/auth_controller.dart';
 import '../../controllers/booking_controller.dart';
 import '../../controllers/customer_controller.dart';
 import '../../core/api_client.dart';
+import '../../core/cache_service.dart';
+import '../../core/live_summary_cache.dart';
 import '../../core/reception_tokens.dart';
 import '../../models/booking.dart';
 import '../../models/report.dart';
@@ -50,6 +52,7 @@ class _VisitsLogScreenState extends State<VisitsLogScreen> {
   DateTime? _toDate;
   LiveSummary? _summary;
   Timer? _searchDebounce;
+  static final _summaryCache = LiveSummaryCache();
 
   @override
   void initState() {
@@ -71,9 +74,25 @@ class _VisitsLogScreenState extends State<VisitsLogScreen> {
       final users = UserService(api);
       _sales = await users.list(role: UserRole.sales);
       _callCenter = await users.list(role: UserRole.callCenter);
-      _summary = await ReportService(api).liveSummary();
+      await _loadSummary(api);
     } catch (_) {}
     if (mounted) setState(() {});
+  }
+
+  Future<void> _loadSummary(ApiClient api) async {
+    final cache = context.read<CacheService>();
+    final cached = _summaryCache.read(cache);
+    if (cached != null && mounted) {
+      setState(() => _summary = cached);
+    }
+    try {
+      final summary = await ReportService(api).liveSummary();
+      await _summaryCache.write(cache, summary);
+      if (!mounted) return;
+      setState(() => _summary = summary);
+    } catch (_) {
+      // keep cached summary
+    }
   }
 
   @override
@@ -164,13 +183,13 @@ class _VisitsLogScreenState extends State<VisitsLogScreen> {
     _searchDebounce = Timer(const Duration(milliseconds: 300), () async {
       final trimmed = query.trim();
       await _loadVisitsFromFilters(queryOverride: trimmed);
-      final api = context.read<ApiClient>();
-      try {
-        final summary = await ReportService(api).liveSummary();
-        if (!mounted) return;
-        setState(() => _summary = summary);
-      } catch (_) {}
+      await _loadSummary(context.read<ApiClient>());
     });
+  }
+
+  Future<void> _refreshPage() async {
+    await _loadVisitsFromFilters();
+    await _loadSummary(context.read<ApiClient>());
   }
 
   @override
@@ -206,7 +225,9 @@ class _VisitsLogScreenState extends State<VisitsLogScreen> {
             onLogout: () => context.read<AuthController>().logout(),
           ),
           Expanded(
-            child: Padding(
+            child: RefreshIndicator(
+              onRefresh: _refreshPage,
+              child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -263,6 +284,7 @@ class _VisitsLogScreenState extends State<VisitsLogScreen> {
                 ],
               ),
             ),
+          ),
           ),
         ],
       ),

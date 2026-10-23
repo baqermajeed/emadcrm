@@ -13,6 +13,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../controllers/auth_controller.dart';
 import '../../controllers/booking_controller.dart';
 import '../../core/api_client.dart';
+import '../../core/cache_service.dart';
+import '../../core/live_summary_cache.dart';
 import '../../core/reception_tokens.dart';
 import '../../models/booking.dart';
 import '../../models/report.dart';
@@ -40,6 +42,7 @@ class _CallCenterHomeState extends State<CallCenterHome> {
   DateTime? _toDate;
   LiveSummary? _summary;
   Timer? _searchDebounce;
+  static final _summaryCache = LiveSummaryCache();
 
   @override
   void initState() {
@@ -146,9 +149,15 @@ class _CallCenterHomeState extends State<CallCenterHome> {
   }
 
   Future<void> _loadSummary() async {
+    final cache = context.read<CacheService>();
+    final cached = _summaryCache.read(cache);
+    if (cached != null && mounted) {
+      setState(() => _summary = cached);
+    }
     try {
       final api = context.read<ApiClient>();
       final summary = await ReportService(api).liveSummary();
+      await _summaryCache.write(cache, summary);
       if (!mounted) return;
       setState(() => _summary = summary);
     } catch (_) {

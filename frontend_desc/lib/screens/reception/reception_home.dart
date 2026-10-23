@@ -11,6 +11,8 @@ import '../../controllers/auth_controller.dart';
 import '../../controllers/booking_controller.dart';
 import '../../controllers/customer_controller.dart';
 import '../../core/api_client.dart';
+import '../../core/cache_service.dart';
+import '../../core/live_summary_cache.dart';
 import '../../core/reception_tokens.dart';
 import '../../models/booking.dart';
 import '../../models/report.dart';
@@ -49,9 +51,8 @@ class _ReceptionHomeState extends State<ReceptionHome> {
   List<AppUser> _sales = [];
   String? _qSalesId;
   LiveSummary? _summary;
+  static final _summaryCache = LiveSummaryCache();
 
-  static const _pageSize = 12;
-  int _page = 0;
   Timer? _searchDebounce;
 
   void _openCustomerProfile(String customerId) {
@@ -92,15 +93,25 @@ class _ReceptionHomeState extends State<ReceptionHome> {
   }
 
   void _onSidebarSelect(int i) {
+    final wasHome = _nav == 0;
     setState(() {
       _nav = i;
       if (i != 1) _profileCustomerId = null;
     });
+    if (i == 0 && !wasHome) {
+      unawaited(_restoreHomeDataset());
+    }
+  }
+
+  Future<void> _restoreHomeDataset() async {
+    await _loadBookingsFromFilters();
+    await _loadSummary(context.read<ApiClient>());
   }
 
   @override
   void initState() {
     super.initState();
+    _tableScroll.addListener(_onTableScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final bookingCtrl = context.read<BookingController>();
       final customerCtrl = context.read<CustomerController>();
@@ -119,6 +130,7 @@ class _ReceptionHomeState extends State<ReceptionHome> {
   @override
   void dispose() {
     _searchDebounce?.cancel();
+    _tableScroll.removeListener(_onTableScroll);
     _search.dispose();
     _qName.dispose();
     _qPhone.dispose();
@@ -126,25 +138,11 @@ class _ReceptionHomeState extends State<ReceptionHome> {
     super.dispose();
   }
 
-  Future<void> _goToPage(int p) async {
-    final bookings = context.read<BookingController>();
-    final neededStartIndex = p * _pageSize;
-    while (bookings.items.length <= neededStartIndex && bookings.hasMore) {
-      await bookings.loadMore();
-    }
-    if (!mounted) return;
-    final pageCount = bookings.items.isEmpty
-        ? 1
-        : ((bookings.items.length - 1) ~/ _pageSize) + 1;
-    final next = p.clamp(0, pageCount - 1);
-    setState(() => _page = next);
-    if (_tableScroll.hasClients) {
-      _tableScroll.animateTo(
-        0,
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOut,
-      );
-    }
+  void _onTableScroll() {
+    if (_nav != 0) return;
+    if (!_tableScroll.hasClients) return;
+    if (_tableScroll.position.extentAfter > 300) return;
+    context.read<BookingController>().loadMore();
   }
 
   List<Booking> _rows(List<Booking> all) {
@@ -180,8 +178,6 @@ class _ReceptionHomeState extends State<ReceptionHome> {
     _searchDebounce = Timer(const Duration(milliseconds: 300), () async {
       final trimmed = query.trim();
       await _loadBookingsFromFilters(queryOverride: trimmed);
-      if (!mounted) return;
-      setState(() => _page = 0);
     });
   }
 
@@ -192,8 +188,14 @@ class _ReceptionHomeState extends State<ReceptionHome> {
   }
 
   Future<void> _loadSummary(ApiClient api) async {
+    final cache = context.read<CacheService>();
+    final cached = _summaryCache.read(cache);
+    if (cached != null && mounted) {
+      setState(() => _summary = cached);
+    }
     try {
       final summary = await ReportService(api).liveSummary();
+      await _summaryCache.write(cache, summary);
       if (!mounted) return;
       setState(() => _summary = summary);
     } catch (_) {
@@ -276,18 +278,6 @@ class _ReceptionHomeState extends State<ReceptionHome> {
     final done = _summary?.approvedBookings ?? 0;
     final left = _summary?.pendingBookings ?? 0;
     final rows = _rows(all);
-    final pageCount = rows.isEmpty ? 1 : ((rows.length - 1) ~/ _pageSize) + 1;
-    final safePage = _page.clamp(0, pageCount - 1);
-    if (safePage != _page) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) setState(() => _page = safePage);
-      });
-    }
-    final start = rows.isEmpty ? 0 : safePage * _pageSize;
-    final end = (start + _pageSize).clamp(0, rows.length);
-    final pageRows = rows.isEmpty ? <Booking>[] : rows.sublist(start, end);
-    final from = rows.isEmpty ? 0 : start + 1;
-    final to = end;
 
     return Column(
       children: [
@@ -351,12 +341,10 @@ class _ReceptionHomeState extends State<ReceptionHome> {
                                 dateFilter: _dateFilter,
                                 onStatus: (v) => setState(() {
                                   _statusFilter = v;
-                                  _page = 0;
                                   unawaited(_loadBookingsFromFilters());
                                 }),
                                 onDate: (v) => setState(() {
                                   _dateFilter = v;
-                                  _page = 0;
                                   unawaited(_loadBookingsFromFilters());
                                 }),
                                 compact: compact || short,
@@ -368,26 +356,31 @@ class _ReceptionHomeState extends State<ReceptionHome> {
                     ),
                     SizedBox(height: topGap),
                     Expanded(
-                      child: _BookingsTable(
-                        rows: pageRows,
-                        rowOffset: start,
-                        scrollController: _tableScroll,
-                        loading: bookings.loading && all.isEmpty,
-                        onApprove: _approve,
-                        onProfile: _profile,
-                        compact: compact || short,
+                      child: RefreshIndicator(
+                        onRefresh: _refresh,
+                        child: _BookingsTable(
+                          rows: rows,
+                          rowOffset: 0,
+                          scrollController: _tableScroll,
+                          loading: bookings.loading && all.isEmpty,
+                          onApprove: _approve,
+                          onProfile: _profile,
+                          compact: compact || short,
+                        ),
                       ),
                     ),
                     SizedBox(height: short ? 4 : 8),
-                    _BookingsPagination(
-                      from: from,
-                      to: to,
-                      total: rows.length,
-                      page: safePage,
-                      pageCount: pageCount,
-                      hasMore: bookings.hasMore,
-                      onPage: (p) => _goToPage(p),
-                    ),
+                    if (bookings.loadingMore)
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 8),
+                        child: Center(
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               );
@@ -1761,104 +1754,3 @@ class _Th extends StatelessWidget {
   }
 }
 
-class _BookingsPagination extends StatelessWidget {
-  const _BookingsPagination({
-    required this.from,
-    required this.to,
-    required this.total,
-    required this.page,
-    required this.pageCount,
-    required this.hasMore,
-    required this.onPage,
-  });
-
-  final int from;
-  final int to;
-  final int total;
-  final int page;
-  final int pageCount;
-  final bool hasMore;
-  final ValueChanged<int> onPage;
-
-  @override
-  Widget build(BuildContext context) {
-    const window = 8;
-    final startPage = pageCount <= window
-        ? 0
-        : (page - window ~/ 2).clamp(0, pageCount - window);
-    final pages = List.generate(
-      pageCount.clamp(1, window),
-      (i) => startPage + i,
-    );
-
-    return Directionality(
-      textDirection: ui.TextDirection.rtl,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: ReceptionTokens.softShadow,
-        ),
-        child: Row(
-          children: [
-            Text(
-              total == 0
-                  ? 'لا توجد حجوزات'
-                  : 'عرض $from - $to من $total حجز',
-              style: GoogleFonts.cairo(
-                fontWeight: FontWeight.w700,
-                fontSize: 13,
-                color: ReceptionTokens.navy,
-              ),
-            ),
-            const Spacer(),
-            IconButton(
-              onPressed: page > 0 ? () => onPage(page - 1) : null,
-              icon: const Icon(Icons.chevron_right, size: 20),
-              color: ReceptionTokens.confirmBlue,
-              visualDensity: VisualDensity.compact,
-            ),
-            ...pages.map((p) {
-              final active = p == page;
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2),
-                child: InkWell(
-                  onTap: () => onPage(p),
-                  borderRadius: BorderRadius.circular(8),
-                  child: Container(
-                    width: 32,
-                    height: 32,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: active
-                          ? ReceptionTokens.confirmBlue
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      '${p + 1}',
-                      style: GoogleFonts.cairo(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 13,
-                        color: active ? Colors.white : ReceptionTokens.navy,
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }),
-            IconButton(
-              onPressed: (page < pageCount - 1 || hasMore)
-                  ? () => onPage(page + 1)
-                  : null,
-              icon: const Icon(Icons.chevron_left, size: 20),
-              color: ReceptionTokens.confirmBlue,
-              visualDensity: VisualDensity.compact,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

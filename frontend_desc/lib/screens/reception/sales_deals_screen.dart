@@ -11,6 +11,7 @@ import '../../controllers/auth_controller.dart';
 import '../../controllers/customer_controller.dart';
 import '../../core/api_client.dart';
 import '../../core/cache_service.dart';
+import '../../core/live_summary_cache.dart';
 import '../../core/pagination.dart';
 import '../../core/reception_tokens.dart';
 import '../../models/customer.dart';
@@ -48,6 +49,7 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
   bool _hasMore = true;
   int _serverPage = 0;
   LiveSummary? _summary;
+  static final _summaryCache = LiveSummaryCache();
 
   String _appliedSearch = '';
   String _sort = 'newest';
@@ -58,32 +60,28 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
   DateTime? _toDate;
   bool _grid = true;
 
-  static const _pageSize = 12;
   static const _fetchPageSize = 30;
-  int _page = 0;
   Timer? _searchDebounce;
 
   @override
   void initState() {
     super.initState();
+    _hydrateSummarySnapshot();
+    _scroll.addListener(_onDealsScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) => _bootstrap());
   }
 
-  Future<void> _goToPage(int p) async {
-    final neededStart = p * _pageSize;
-    while (_deals.length <= neededStart && _hasMore && !_loadingMore) {
-      await _loadMoreDeals();
-    }
-    if (!mounted) return;
-    final pageCount = _deals.isEmpty ? 1 : ((_deals.length - 1) ~/ _pageSize) + 1;
-    setState(() => _page = p.clamp(0, pageCount - 1));
-    if (_scroll.hasClients) {
-      _scroll.animateTo(
-        0,
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOut,
-      );
-    }
+  void _hydrateSummarySnapshot() {
+    final cache = context.read<CacheService>();
+    final cached = _summaryCache.read(cache);
+    if (cached == null) return;
+    _summary = cached;
+  }
+
+  void _onDealsScroll() {
+    if (!_scroll.hasClients) return;
+    if (_scroll.position.extentAfter > 300) return;
+    _loadMoreDeals();
   }
 
   Future<void> _bootstrap() async {
@@ -120,7 +118,7 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
         });
       }
       final sales = await UserService(api).list(role: UserRole.sales);
-      final summary = await ReportService(api).liveSummary();
+      final summary = await _loadSummary(api);
       if (!mounted) return;
       setState(() {
         _sales = sales;
@@ -140,14 +138,13 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
     final api = context.read<ApiClient>();
     try {
       final result = await _fetchDealsPage(api, 1);
-      final summary = await ReportService(api).liveSummary();
+      final summary = await _loadSummary(api);
       if (!mounted) return;
       setState(() {
         _deals = result.items;
         _serverPage = 1;
         _hasMore = result.hasMore;
         _summary = summary;
-        _page = 0;
       });
       await cache.writeMap(_dealsCacheKey(page: 1, search: _appliedSearch), {
         'items': result.items.map((e) => e.toJson()).toList(),
@@ -163,7 +160,7 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
     final cache = context.read<CacheService>();
     try {
       final result = await _fetchDealsPage(api, 1);
-      final summary = await ReportService(api).liveSummary();
+      final summary = await _loadSummary(api);
       if (!mounted) return;
       setState(() {
         _deals = result.items;
@@ -180,6 +177,25 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
     } catch (_) {
       // keep cached data
     }
+  }
+
+  Future<LiveSummary?> _loadSummary(ApiClient api) async {
+    final cache = context.read<CacheService>();
+    final cached = _summaryCache.read(cache);
+    if (cached != null && mounted) {
+      setState(() => _summary = cached);
+    }
+    try {
+      final summary = await ReportService(api).liveSummary();
+      await _summaryCache.write(cache, summary);
+      return summary;
+    } catch (_) {
+      return cached;
+    }
+  }
+
+  Future<void> _refreshPage() async {
+    await _reloadDeals();
   }
 
   Future<void> _loadMoreDeals() async {
@@ -245,6 +261,7 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
   @override
   void dispose() {
     _searchDebounce?.cancel();
+    _scroll.removeListener(_onDealsScroll);
     _search.dispose();
     _scroll.dispose();
     super.dispose();
@@ -305,7 +322,6 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
       } else {
         _toDate = picked;
       }
-      _page = 0;
     });
     await _reloadDeals();
   }
@@ -320,7 +336,6 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
       _sort = 'newest';
       _search.clear();
       _appliedSearch = '';
-      _page = 0;
     });
     _runServerSearch('');
   }
@@ -332,7 +347,6 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
       if (_appliedSearch == trimmed && _deals.isNotEmpty) return;
       setState(() {
         _appliedSearch = trimmed;
-        _page = 0;
       });
       await _reloadDeals();
     });
@@ -429,19 +443,7 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthController>();
     final filtered = _filtered();
-    final totalAll = _summary?.totalDeals ?? _deals.length;
-    final pageCount = filtered.isEmpty ? 1 : ((filtered.length - 1) ~/ _pageSize) + 1;
-    final safePage = _page.clamp(0, pageCount - 1);
-    if (safePage != _page) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) setState(() => _page = safePage);
-      });
-    }
-    final start = filtered.isEmpty ? 0 : safePage * _pageSize;
-    final end = (start + _pageSize).clamp(0, filtered.length);
-    final pageItems = filtered.isEmpty ? <Deal>[] : filtered.sublist(start, end);
-    final from = filtered.isEmpty ? 0 : start + 1;
-    final to = end;
+    final totalAll = _summary?.totalDeals;
 
     final customers = context.watch<CustomerController>().items;
     Customer? customerOf(Deal d) {
@@ -468,14 +470,16 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
             onLogout: () => context.read<AuthController>().logout(),
           ),
           Expanded(
-            child: Padding(
+            child: RefreshIndicator(
+              onRefresh: _refreshPage,
+              child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _StatsRow(
                     total: totalAll,
-                    loading: _loading && _deals.isEmpty,
+                    loading: _summary == null,
                     onAdd: _addDeal,
                   ),
                   const SizedBox(height: 10),
@@ -492,28 +496,24 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
                     onSales: (v) {
                       setState(() {
                         _salesId = v;
-                        _page = 0;
                       });
                       unawaited(_reloadDeals());
                     },
                     onSort: (v) {
                       setState(() {
                         _sort = v;
-                        _page = 0;
                       });
                       unawaited(_reloadDeals());
                     },
                     onHouseType: (v) {
                       setState(() {
                         _houseType = v;
-                        _page = 0;
                       });
                       unawaited(_reloadDeals());
                     },
                     onComplex: (v) {
                       setState(() {
                         _complex = v;
-                        _page = 0;
                       });
                       unawaited(_reloadDeals());
                     },
@@ -539,7 +539,7 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
                             : _grid
                                 ? _DealsGrid(
                                     scrollController: _scroll,
-                                    deals: pageItems,
+                                    deals: filtered,
                                     customerOf: customerOf,
                                     houseLabel: _houseLabel,
                                     complexLabel: _complexLabel,
@@ -551,25 +551,27 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
                                   )
                                 : _DealsList(
                                     scrollController: _scroll,
-                                    deals: pageItems,
+                                    deals: filtered,
                                     onOpen: (d) =>
                                         widget.onOpenCustomer?.call(d.customerId),
                                   ),
                   ),
                   const SizedBox(height: 8),
-                  _PaginationBar(
-                    from: from,
-                    to: to,
-                    total: filtered.length,
-                    page: safePage,
-                    pageCount: pageCount,
-                      hasMore: _hasMore,
-                      loadingMore: _loadingMore,
-                      onPage: (p) => _goToPage(p),
-                  ),
+                  if (_loadingMore)
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 8),
+                      child: Center(
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
+          ),
           ),
         ],
       ),
@@ -718,7 +720,7 @@ class _StatsRow extends StatelessWidget {
     required this.onAdd,
   });
 
-  final int total;
+  final int? total;
   final bool loading;
   final VoidCallback onAdd;
 
@@ -732,7 +734,7 @@ class _StatsRow extends StatelessWidget {
             width: 220,
             child: _StatCard(
               label: 'إجمالي الصفقات',
-              value: loading ? '—' : '$total',
+              value: loading ? '—' : '${total ?? 0}',
               iconAsset: RAssets.statDeals,
               accent: const Color(0xFF1E6FD9),
               iconBg: const Color(0xFFDBEAFE),
@@ -1730,132 +1732,6 @@ class _DealShimmerPainter extends CustomPainter {
 
 // ───────────────────────── Pagination ─────────────────────────
 
-class _PaginationBar extends StatelessWidget {
-  const _PaginationBar({
-    required this.from,
-    required this.to,
-    required this.total,
-    required this.page,
-    required this.pageCount,
-    required this.hasMore,
-    required this.loadingMore,
-    required this.onPage,
-  });
-
-  final int from;
-  final int to;
-  final int total;
-  final int page;
-  final int pageCount;
-  final bool hasMore;
-  final bool loadingMore;
-  final ValueChanged<int> onPage;
-
-  @override
-  Widget build(BuildContext context) {
-    final pages = List.generate(pageCount.clamp(1, 8), (i) => i);
-
-    return Directionality(
-      textDirection: ui.TextDirection.rtl,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF069BAF).withValues(alpha: 0.12),
-              blurRadius: 8,
-              offset: Offset.zero,
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Text(
-              'عرض $from - $to من $total صفقة',
-              style: GoogleFonts.cairo(
-                fontWeight: FontWeight.w700,
-                fontSize: 13,
-                color: const Color(0xFF123B70),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Container(
-              height: 32,
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF0F6FA),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFFD5E4EE)),
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                '12',
-                style: GoogleFonts.cairo(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 13,
-                  color: const Color(0xFF123B70),
-                ),
-              ),
-            ),
-            const Spacer(),
-            if (loadingMore)
-              const Padding(
-                padding: EdgeInsetsDirectional.only(end: 8),
-                child: SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              ),
-            IconButton(
-              onPressed: page > 0 ? () => onPage(page - 1) : null,
-              icon: const Icon(Icons.chevron_right, size: 20),
-              color: ReceptionTokens.confirmBlue,
-              visualDensity: VisualDensity.compact,
-            ),
-            ...pages.map((p) {
-              final active = p == page;
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2),
-                child: InkWell(
-                  onTap: () => onPage(p),
-                  borderRadius: BorderRadius.circular(8),
-                  child: Container(
-                    width: 32,
-                    height: 32,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: active ? ReceptionTokens.confirmBlue : Colors.transparent,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      '${p + 1}',
-                      style: GoogleFonts.cairo(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 13,
-                        color: active ? Colors.white : const Color(0xFF123B70),
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }),
-            IconButton(
-              onPressed: (page < pageCount - 1 || hasMore)
-                  ? () => onPage(page + 1)
-                  : null,
-              icon: const Icon(Icons.chevron_left, size: 20),
-              color: ReceptionTokens.confirmBlue,
-              visualDensity: VisualDensity.compact,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 // ───────────────────────── Pick customer ─────────────────────────
 

@@ -36,8 +36,8 @@ class BookingService {
     };
     if (status != null) query['status'] = status.api;
     if (search != null && search.isNotEmpty) query['search'] = search;
-    if (fromDate != null) query['from_date'] = fromDate.toUtc().toIso8601String();
-    if (toDate != null) query['to_date'] = toDate.toUtc().toIso8601String();
+    if (fromDate != null) query['from_date'] = fromDate.toIso8601String();
+    if (toDate != null) query['to_date'] = toDate.toIso8601String();
     if (callCenterId != null && callCenterId.isNotEmpty) {
       query['call_center_id'] = callCenterId;
     }

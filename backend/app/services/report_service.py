@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
@@ -130,9 +130,18 @@ class ReportService:
             deals_query["sales_employee_id"] = actor_id
             reservations_query["sales_employee_id"] = actor_id
 
-        now = datetime.now(UTC)
-        day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        day_end = now.replace(hour=23, minute=59, second=59, microsecond=999999)
+        baghdad_tz = timezone(timedelta(hours=3))
+        now_local = datetime.now(baghdad_tz)
+        day_start_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end_local = now_local.replace(hour=23, minute=59, second=59, microsecond=999999)
+        day_start_utc = day_start_local.astimezone(UTC)
+        day_end_utc = day_end_local.astimezone(UTC)
+
+        today_match = self._dual_day_clause(
+            field="visit_date",
+            start_utc=day_start_utc,
+            end_utc=day_end_utc,
+        )
 
         total_bookings = await bookings.count_documents(booking_query)
         pending_bookings = await bookings.count_documents(
@@ -150,18 +159,14 @@ class ReportService:
             }
         )
         today_bookings = await bookings.count_documents(
-            {
-                **booking_query,
-                "visit_date": {"$gte": day_start, "$lte": day_end},
-            }
+            self._combine_query(booking_query, today_match)
         )
         total_confirmed_visits = approved_bookings
         today_confirmed_visits = await bookings.count_documents(
-            {
-                **booking_query,
-                "status": BookingStatus.APPROVED.value,
-                "visit_date": {"$gte": day_start, "$lte": day_end},
-            }
+            self._combine_query(
+                {**booking_query, "status": BookingStatus.APPROVED.value},
+                today_match,
+            )
         )
 
         total_customers = await customers.count_documents(customer_query)
@@ -181,4 +186,29 @@ class ReportService:
             "total_customers": total_customers,
             "total_deals": total_deals,
             "active_reservations": active_reservations,
+        }
+
+    @staticmethod
+    def _combine_query(base: dict, extra: dict) -> dict:
+        if not base:
+            return extra
+        return {"$and": [base, extra]}
+
+    @staticmethod
+    def _dual_day_clause(
+        *,
+        field: str,
+        start_utc: datetime,
+        end_utc: datetime,
+    ) -> dict:
+        return {
+            "$or": [
+                {field: {"$gte": start_utc, "$lte": end_utc}},
+                {
+                    field: {
+                        "$gte": start_utc.replace(tzinfo=None),
+                        "$lte": end_utc.replace(tzinfo=None),
+                    }
+                },
+            ]
         }

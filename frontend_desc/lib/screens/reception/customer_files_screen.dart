@@ -9,6 +9,8 @@ import 'package:provider/provider.dart';
 import '../../controllers/auth_controller.dart';
 import '../../controllers/customer_controller.dart';
 import '../../core/api_client.dart';
+import '../../core/cache_service.dart';
+import '../../core/live_summary_cache.dart';
 import '../../core/reception_tokens.dart';
 import '../../models/customer.dart';
 import '../../models/report.dart';
@@ -53,12 +55,24 @@ class _CustomerFilesScreenState extends State<CustomerFilesScreen> {
   int _reservationsCount = 0;
   bool _statsLoading = true;
   LiveSummary? _summary;
+  static final _summaryCache = LiveSummaryCache();
 
   @override
   void initState() {
     super.initState();
+    _hydrateSummarySnapshot();
     _scroll.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) => _bootstrap());
+  }
+
+  void _hydrateSummarySnapshot() {
+    final cache = context.read<CacheService>();
+    final cached = _summaryCache.read(cache);
+    if (cached == null) return;
+    _summary = cached;
+    _dealsCount = cached.totalDeals;
+    _reservationsCount = cached.activeReservations;
+    _statsLoading = false;
   }
 
   Future<void> _bootstrap() async {
@@ -85,9 +99,20 @@ class _CustomerFilesScreenState extends State<CustomerFilesScreen> {
   }
 
   Future<void> _loadSummary(ApiClient api) async {
+    final cache = context.read<CacheService>();
+    final cached = _summaryCache.read(cache);
+    if (cached != null && mounted) {
+      setState(() {
+        _summary = cached;
+        _dealsCount = cached.totalDeals;
+        _reservationsCount = cached.activeReservations;
+        _statsLoading = false;
+      });
+    }
     try {
       final summary = await ReportService(api).liveSummary();
       if (!mounted) return;
+      await _summaryCache.write(cache, summary);
       setState(() {
         _summary = summary;
         _dealsCount = summary.totalDeals;
@@ -97,6 +122,11 @@ class _CustomerFilesScreenState extends State<CustomerFilesScreen> {
     } catch (_) {
       if (mounted) setState(() => _statsLoading = false);
     }
+  }
+
+  Future<void> _refreshPage() async {
+    await _loadCustomersFromFilters(queryOverride: _headerSearch.text);
+    await _loadSummary(context.read<ApiClient>());
   }
 
   @override
@@ -202,7 +232,9 @@ class _CustomerFilesScreenState extends State<CustomerFilesScreen> {
               },
             ),
             Expanded(
-              child: Padding(
+              child: RefreshIndicator(
+                onRefresh: _refreshPage,
+                child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -295,6 +327,7 @@ class _CustomerFilesScreenState extends State<CustomerFilesScreen> {
                   ],
                 ),
               ),
+            ),
             ),
           ],
         ),

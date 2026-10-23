@@ -33,8 +33,8 @@ class CustomerService {
     };
     if (search != null && search.isNotEmpty) query['search'] = search;
     if (status != null && status.isNotEmpty) query['status'] = status;
-    if (fromDate != null) query['from_date'] = fromDate.toUtc().toIso8601String();
-    if (toDate != null) query['to_date'] = toDate.toUtc().toIso8601String();
+    if (fromDate != null) query['from_date'] = fromDate.toIso8601String();
+    if (toDate != null) query['to_date'] = toDate.toIso8601String();
     final data = await _api.get('/api/customers', query: query) as Map<String, dynamic>;
     final rawItems = (data['items'] as List<dynamic>? ?? const <dynamic>[])
         .cast<Map<String, dynamic>>();
