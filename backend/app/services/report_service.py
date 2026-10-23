@@ -141,6 +141,8 @@ class ReportService:
             field="visit_date",
             start_utc=day_start_utc,
             end_utc=day_end_utc,
+            start_local_naive=day_start_local.replace(tzinfo=None),
+            end_local_naive=day_end_local.replace(tzinfo=None),
         )
 
         total_bookings = await bookings.count_documents(booking_query)
@@ -200,14 +202,16 @@ class ReportService:
         field: str,
         start_utc: datetime,
         end_utc: datetime,
+        start_local_naive: datetime,
+        end_local_naive: datetime,
     ) -> dict:
         return {
             "$or": [
                 {field: {"$gte": start_utc, "$lte": end_utc}},
                 {
                     field: {
-                        "$gte": start_utc.replace(tzinfo=None),
-                        "$lte": end_utc.replace(tzinfo=None),
+                        "$gte": start_local_naive,
+                        "$lte": end_local_naive,
                     }
                 },
             ]

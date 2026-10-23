@@ -51,6 +51,8 @@ class CustomerService:
             if d.get("call_center_id"):
                 ids.add(d["call_center_id"])
         profiles = await self.users.profile_map(list(ids))
+        missing_status_ids = [d.get("id") for d in docs if not d.get("status") and d.get("id")]
+        inferred_status = await self._infer_status_map(missing_status_ids)
         for d in docs:
             sales = profiles.get(d.get("sales_employee_id") or "", {})
             call = profiles.get(d.get("call_center_id") or "", {})
@@ -58,8 +60,59 @@ class CustomerService:
             d["sales_employee_avatar_url"] = sales.get("avatar_url")
             d["call_center_name"] = call.get("full_name")
             d["call_center_avatar_url"] = call.get("avatar_url")
+            if not d.get("status") and d.get("id") in inferred_status:
+                d["status"] = inferred_status[d["id"]]
             d.setdefault("documents", [])
         return docs
+
+    async def _infer_status_map(self, customer_ids: list[str]) -> dict[str, str]:
+        if not customer_ids:
+            return {}
+
+        deals = self.db[Collections.DEALS]
+        reservations = self.db[Collections.RESERVATIONS]
+        visits = self.db[Collections.VISITS]
+
+        deal_rows = await deals.aggregate(
+            [
+                {"$match": {"customer_id": {"$in": customer_ids}}},
+                {"$group": {"_id": "$customer_id"}},
+            ]
+        ).to_list(None)
+        deal_ids = {str(r["_id"]) for r in deal_rows if r.get("_id")}
+
+        active_res_rows = await reservations.aggregate(
+            [
+                {
+                    "$match": {
+                        "customer_id": {"$in": customer_ids},
+                        "status": ReservationStatus.ACTIVE.value,
+                    }
+                },
+                {"$group": {"_id": "$customer_id"}},
+            ]
+        ).to_list(None)
+        reservation_ids = {str(r["_id"]) for r in active_res_rows if r.get("_id")}
+
+        visit_rows = await visits.aggregate(
+            [
+                {"$match": {"customer_id": {"$in": customer_ids}}},
+                {"$group": {"_id": "$customer_id"}},
+            ]
+        ).to_list(None)
+        visit_ids = {str(r["_id"]) for r in visit_rows if r.get("_id")}
+
+        inferred: dict[str, str] = {}
+        for cid in customer_ids:
+            if cid in deal_ids:
+                inferred[cid] = CustomerStatus.BUYER.value
+            elif cid in reservation_ids:
+                inferred[cid] = CustomerStatus.RESERVATION.value
+            elif cid in visit_ids:
+                inferred[cid] = CustomerStatus.INTERESTED.value
+            else:
+                inferred[cid] = CustomerStatus.POTENTIAL.value
+        return inferred
 
     async def get(self, customer_id: str) -> dict:
         doc = await self.col.find_one({"_id": oid(customer_id, "customer")})
