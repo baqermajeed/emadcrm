@@ -3,6 +3,7 @@ from datetime import datetime
 from pathlib import Path
 
 import aiofiles
+from bson import ObjectId
 from fastapi import HTTPException, UploadFile, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
@@ -68,6 +69,10 @@ class CustomerService:
     async def _infer_status_map(self, customer_ids: list[str]) -> dict[str, str]:
         if not customer_ids:
             return {}
+        customer_refs: list[str | ObjectId] = list(customer_ids)
+        for cid in customer_ids:
+            if ObjectId.is_valid(cid):
+                customer_refs.append(oid(cid, "customer"))
 
         deals = self.db[Collections.DEALS]
         reservations = self.db[Collections.RESERVATIONS]
@@ -75,7 +80,7 @@ class CustomerService:
 
         deal_rows = await deals.aggregate(
             [
-                {"$match": {"customer_id": {"$in": customer_ids}}},
+                {"$match": {"customer_id": {"$in": customer_refs}}},
                 {"$group": {"_id": "$customer_id"}},
             ]
         ).to_list(None)
@@ -85,7 +90,7 @@ class CustomerService:
             [
                 {
                     "$match": {
-                        "customer_id": {"$in": customer_ids},
+                        "customer_id": {"$in": customer_refs},
                         "status": ReservationStatus.ACTIVE.value,
                     }
                 },
@@ -96,7 +101,7 @@ class CustomerService:
 
         visit_rows = await visits.aggregate(
             [
-                {"$match": {"customer_id": {"$in": customer_ids}}},
+                {"$match": {"customer_id": {"$in": customer_refs}}},
                 {"$group": {"_id": "$customer_id"}},
             ]
         ).to_list(None)

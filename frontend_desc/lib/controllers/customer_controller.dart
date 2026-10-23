@@ -35,7 +35,7 @@ class CustomerController extends ChangeNotifier {
   final CacheService _cache;
 
   static const int pageSize = 30;
-  static const String _cachePrefix = 'customers';
+  static const String _cachePrefix = 'customers_v2';
 
   List<Customer> items = [];
   Customer? selected;
