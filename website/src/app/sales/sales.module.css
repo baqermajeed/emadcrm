@@ -1,0 +1,619 @@
+.salesDashboard {
+  min-height: 100vh;
+  background: #eaf1fb;
+  padding: 0;
+}
+
+.mobileFrame {
+  width: 100%;
+  min-height: 100vh;
+  max-width: 430px;
+  margin: 0 auto;
+  border-radius: 0;
+  background: #eaf1fb;
+  overflow: hidden;
+  box-shadow: none;
+  border: 0;
+  position: relative;
+}
+
+.loadingPanel {
+  max-width: 430px;
+  margin: 24px auto;
+  background: #fff;
+  border-radius: 20px;
+  border: 1px solid #d9e5f7;
+  padding: 16px;
+  text-align: center;
+  color: #1a3557;
+}
+
+.salesHero {
+  position: relative;
+  padding: 14px 14px 98px;
+  color: #fff;
+  background-image:
+    linear-gradient(180deg, rgba(2, 26, 53, 0.08) 0%, rgba(2, 26, 53, 0.86) 72%),
+    url("/assets/backgrondprofile.png");
+  background-size: 100% 100%;
+  background-position: center top;
+  background-repeat: no-repeat;
+  border-bottom-left-radius: 36px;
+  border-bottom-right-radius: 36px;
+  overflow: visible;
+}
+
+.salesHeroOverlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(4, 41, 81, 0.5) 18%, rgba(11, 45, 92, 0.86) 78%);
+  border-bottom-left-radius: 36px;
+  border-bottom-right-radius: 36px;
+}
+
+.salesHeroTop,
+.salesHeroTitle,
+.salesStats {
+  position: relative;
+  z-index: 1;
+}
+
+.salesHeroTop {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+}
+
+.salesBrand {
+  text-align: center;
+  justify-self: center;
+  display: grid;
+  justify-items: center;
+}
+
+.salesLogo {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.35));
+  margin-bottom: 2px;
+}
+
+.salesBrand strong {
+  display: block;
+  line-height: 1.05;
+  font-size: 0.96rem;
+}
+
+.salesBrand small {
+  opacity: 0.94;
+  font-size: 0.66rem;
+  letter-spacing: 0;
+}
+
+.salesHeroActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.editProfileBtn {
+  height: 34px;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  padding: 0 10px;
+  font-size: 0.79rem;
+  font-weight: 700;
+}
+
+.salesBell {
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.17);
+  color: #fff;
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+
+.salesBell b {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: #ff5f65;
+  display: grid;
+  place-items: center;
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+.salesAvatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.84);
+  background: linear-gradient(145deg, #d7e4f6, #91a8c8);
+  color: #133865;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.salesAvatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.salesAvatar span {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+.salesHeroTitle {
+  margin-top: 10px;
+  text-align: right;
+}
+
+.salesHeroTitle h1 {
+  margin: 0;
+  font-size: 1.6rem;
+  line-height: 1.1;
+  font-weight: 800;
+}
+
+.salesHeroTitle p {
+  margin: 4px 0 0;
+  color: rgba(248, 251, 255, 0.9);
+  font-size: 1.02rem;
+}
+
+.salesStats {
+  position: absolute;
+  inset: auto 12px -34px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 0;
+  z-index: 3;
+}
+
+.statCard {
+  background: #fff;
+  border-radius: 14px;
+  border: 1px solid #e2ebf8;
+  box-shadow: 0 8px 14px rgba(28, 55, 95, 0.12);
+  text-align: center;
+  padding: 8px 4px 6px;
+}
+
+.statIcon {
+  display: block;
+  font-size: 1rem;
+}
+
+.statCard strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 1.85rem;
+  line-height: 1;
+  color: #123256;
+}
+
+.statCard small {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.77rem;
+  color: #52647f;
+}
+
+.salesBody {
+  padding: 48px 10px 98px;
+}
+
+.salesSearchRow {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 6px;
+  background: #fff;
+  border-radius: 16px;
+  padding: 8px 8px 8px 12px;
+  border: 1px solid #dee8f7;
+  box-shadow: 0 8px 18px rgba(31, 63, 108, 0.08);
+}
+
+.salesFilterBtn {
+  border: 0;
+  background: #e9f2ff;
+  color: #1b5fc9;
+  border-radius: 12px;
+  padding: 8px 14px;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.salesSearchInput {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  outline: none;
+  text-align: right;
+  color: #67758a;
+  font-size: 0.92rem;
+}
+
+.searchIcon {
+  color: #2f4f74;
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.salesPills {
+  margin: 10px 0 8px;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 3px;
+}
+
+.salesPills::-webkit-scrollbar {
+  display: none;
+}
+
+.salesPill {
+  border: 0;
+  border-radius: 999px;
+  background: #eff3fb;
+  color: #344966;
+  padding: 10px 13px;
+  font-size: 0.89rem;
+  white-space: nowrap;
+}
+
+.salesPillActive {
+  background: #1b62d3;
+  color: #fff;
+}
+
+.salesCards {
+  display: grid;
+  gap: 9px;
+}
+
+.salesCustomerCard {
+  background: #fff;
+  border: 1px solid #dce7f8;
+  border-radius: 16px;
+  padding: 10px 10px 8px;
+  box-shadow: 0 7px 16px rgba(24, 55, 96, 0.09);
+}
+
+.salesCardMain {
+  display: grid;
+  grid-template-columns: 110px 1fr 80px;
+  gap: 8px;
+  align-items: center;
+}
+
+.salesCardImage {
+  width: 110px;
+  height: 78px;
+  border-radius: 12px;
+  border: 1px solid #d2dff1;
+  background:
+    linear-gradient(180deg, rgba(11, 43, 82, 0.08), rgba(11, 43, 82, 0.42)),
+    url("/assets/backgrondprofile.png");
+  background-size: cover;
+  background-position: center;
+}
+
+.salesCardInfo h3 {
+  margin: 0;
+  font-size: 1.03rem;
+  color: #132e4f;
+  line-height: 1.25;
+}
+
+.salesPhone {
+  margin: 2px 0 4px;
+  font-size: 0.95rem;
+  color: #2f4b6e;
+}
+
+.salesTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.salesTag {
+  display: inline-flex;
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.salesTag.status {
+  background: #ebf6ef;
+  color: #1a8f52;
+}
+
+.salesTag.villa {
+  background: #f8efd9;
+  color: #5e4d21;
+}
+
+.salesCardDate {
+  text-align: center;
+  border-right: 1px solid #e7effa;
+  padding-right: 6px;
+}
+
+.salesCardDate small {
+  display: block;
+  color: #6a7d96;
+  font-size: 0.7rem;
+  margin-bottom: 2px;
+}
+
+.salesCardDate strong {
+  display: block;
+  font-size: 2rem;
+  line-height: 1;
+  color: #15345a;
+}
+
+.salesCardDate span {
+  display: block;
+  font-size: 0.73rem;
+  color: #637792;
+}
+
+.salesCardActions {
+  margin-top: 8px;
+  border-top: 1px solid #eaf0f8;
+  padding-top: 7px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.salesCardActions button {
+  border: 0;
+  background: transparent;
+  color: #2d4667;
+  font-size: 0.9rem;
+}
+
+.salesEmpty {
+  text-align: center;
+  color: #5c708d;
+  padding: 12px 8px;
+}
+
+.bottomNav {
+  position: absolute;
+  inset: auto 0 0;
+  background: #fff;
+  border-top: 1px solid #dfe8f6;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  align-items: center;
+  padding: 8px 10px calc(10px + env(safe-area-inset-bottom));
+}
+
+.navItem {
+  border: 0;
+  background: transparent;
+  display: grid;
+  justify-items: center;
+  color: #476080;
+  gap: 2px;
+}
+
+.navItem span {
+  font-size: 1.15rem;
+}
+
+.navItem small {
+  font-size: 0.74rem;
+}
+
+.navItemActive {
+  color: #1a65d5;
+  font-weight: 700;
+}
+
+.addButton {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 0;
+  margin: -34px auto 0;
+  background: linear-gradient(160deg, #1c6de3, #0f56c2);
+  color: #fff;
+  font-size: 2rem;
+  line-height: 1;
+  box-shadow: 0 11px 26px rgba(16, 80, 186, 0.4);
+}
+
+.muted {
+  color: #5e7290;
+  margin: 8px 4px;
+}
+
+.error {
+  background: #ffe9ea;
+  border: 1px solid #ffc7cb;
+  color: #8a1b28;
+  border-radius: 10px;
+  padding: 10px;
+  margin: 8px 0;
+  font-size: 0.92rem;
+}
+
+.profileModal,
+.cropperModal {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 18, 38, 0.66);
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 14px;
+}
+
+.profileCard,
+.cropperCard {
+  width: min(100%, 420px);
+  background: #fff;
+  border-radius: 16px;
+  padding: 14px;
+  box-shadow: 0 18px 42px rgba(13, 39, 79, 0.28);
+}
+
+.profileCard h3,
+.cropperCard h3 {
+  margin: 0 0 12px;
+  color: #143055;
+  font-size: 1.08rem;
+}
+
+.profileAvatarEditor {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.profileAvatarPreview {
+  width: 88px;
+  height: 88px;
+  border-radius: 12px;
+  border: 2px solid #d7e4f6;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  color: #1a4b81;
+  font-weight: 800;
+  background: #edf3fb;
+}
+
+.profileAvatarPreview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatarInputButton {
+  border: 0;
+  border-radius: 10px;
+  background: #e9f2ff;
+  color: #165fbe;
+  padding: 10px 14px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.avatarInputButton input {
+  display: none;
+}
+
+.profileLabel {
+  display: block;
+  color: #355374;
+  font-size: 0.86rem;
+  margin-top: 8px;
+}
+
+.profileInput {
+  width: 100%;
+  margin-top: 4px;
+  border: 1px solid #d6e2f4;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 0.95rem;
+  color: #16395e;
+  outline: none;
+}
+
+.profileInput:focus {
+  border-color: #8db4ee;
+}
+
+.profileError {
+  margin: 8px 0 0;
+  color: #8c1d2d;
+  font-size: 0.86rem;
+}
+
+.profileActions,
+.cropperActions {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.profileActions button,
+.cropperActions button {
+  border: 0;
+  border-radius: 10px;
+  padding: 9px 12px;
+  font-size: 0.88rem;
+}
+
+.profileActions button:first-child,
+.cropperActions button:first-child {
+  background: #ecf1fa;
+  color: #2e4969;
+}
+
+.profileActions button:last-child,
+.cropperActions button:last-child {
+  background: #1b63d5;
+  color: #fff;
+}
+
+.cropperSquare {
+  width: 280px;
+  height: 280px;
+  margin: 0 auto;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid #d9e5f7;
+  background: #0d2d52;
+  position: relative;
+}
+
+.cropperSquare img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform-origin: center;
+}
+
+.cropControl {
+  display: block;
+  margin-top: 10px;
+  color: #2e4f75;
+  font-size: 0.82rem;
+}
+
+.cropControl input {
+  width: 100%;
+  margin-top: 4px;
+}

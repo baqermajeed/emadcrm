@@ -30,3 +30,8 @@ Thumbs.db
 # Uploads & local data
 uploads/
 *.log
+
+# Node / Next.js artifacts
+node_modules/
+website/node_modules/
+website/.next/

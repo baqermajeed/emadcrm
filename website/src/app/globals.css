@@ -1,0 +1,472 @@
+:root {
+  color-scheme: light;
+  --bg: #f5f7fb;
+  --surface: #ffffff;
+  --text: #1e2430;
+  --muted: #5f6b7a;
+  --primary: #2457ff;
+  --primary-strong: #1d46cc;
+  --border: #e3e8f0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.shell {
+  max-width: 540px;
+  margin: 0 auto;
+  min-height: 100vh;
+  padding: 20px 14px 24px;
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 8px 24px rgba(32, 42, 63, 0.06);
+}
+
+.title {
+  margin: 0 0 14px;
+  font-size: 1.15rem;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 0.98rem;
+  margin-bottom: 10px;
+}
+
+.button {
+  width: 100%;
+  border: 0;
+  border-radius: 12px;
+  padding: 12px;
+  background: var(--primary);
+  color: white;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.button:hover {
+  background: var(--primary-strong);
+}
+
+.button.secondary {
+  background: #eef2ff;
+  color: #21357d;
+}
+
+.error {
+  background: #ffe9ea;
+  border: 1px solid #ffc7cb;
+  color: #8a1b28;
+  border-radius: 10px;
+  padding: 10px;
+  margin-bottom: 10px;
+  font-size: 0.92rem;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+}
+
+.stack {
+  display: grid;
+  gap: 10px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.card-header h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.badge {
+  background: #eef2ff;
+  color: #2c3f95;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 0.78rem;
+}
+
+.card-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+
+.card-grid p,
+.notes {
+  margin: 0;
+  color: #37465b;
+  font-size: 0.9rem;
+}
+
+.sales-dashboard {
+  min-height: 100vh;
+  background: #edf2fa;
+}
+
+.sales-hero {
+  position: relative;
+  color: #fff;
+  padding: 14px 16px 24px;
+  background:
+    linear-gradient(180deg, rgba(4, 31, 64, 0.35) 0%, rgba(4, 31, 64, 0.72) 100%),
+    linear-gradient(135deg, #0b3f79 0%, #0b2f59 45%, #13243f 100%);
+  border-bottom-left-radius: 22px;
+  border-bottom-right-radius: 22px;
+  overflow: hidden;
+}
+
+.sales-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.25;
+  background:
+    radial-gradient(circle at 8% 22%, rgba(255, 255, 255, 0.27) 0 2px, transparent 3px),
+    radial-gradient(circle at 18% 40%, rgba(255, 255, 255, 0.2) 0 2px, transparent 3px),
+    radial-gradient(circle at 78% 12%, rgba(255, 255, 255, 0.2) 0 2px, transparent 3px);
+  pointer-events: none;
+}
+
+.sales-hero-overlay {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 62%;
+  background: linear-gradient(0deg, rgba(255, 255, 255, 0.08), transparent);
+}
+
+.sales-hero-top,
+.sales-hero-title {
+  position: relative;
+  z-index: 1;
+}
+
+.sales-hero-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.sales-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sales-brand-mark {
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  color: #f5cc82;
+  border: 1px solid rgba(245, 204, 130, 0.5);
+  font-weight: 800;
+  font-size: 0.9rem;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.sales-brand strong {
+  display: block;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.sales-brand small {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.68rem;
+  letter-spacing: 0.6px;
+  opacity: 0.78;
+}
+
+.sales-hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sales-bell {
+  border: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.14);
+  position: relative;
+}
+
+.sales-bell b {
+  position: absolute;
+  top: -6px;
+  right: -5px;
+  width: 18px;
+  height: 18px;
+  border-radius: 99px;
+  background: #ff5767;
+  display: grid;
+  place-items: center;
+  font-size: 0.66rem;
+}
+
+.sales-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.75);
+  background: linear-gradient(145deg, #dfe9f5, #9db3ce);
+  color: #0f2f55;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+}
+
+.sales-hero-title {
+  margin-top: 22px;
+}
+
+.sales-hero-title h1 {
+  margin: 0;
+  font-size: 2rem;
+  line-height: 1.22;
+  font-weight: 800;
+}
+
+.sales-hero-title p {
+  margin: 4px 0 0;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.sales-body {
+  margin-top: -12px;
+  padding: 0 10px 14px;
+}
+
+.sales-search-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fff;
+  border-radius: 16px;
+  padding: 7px;
+  box-shadow: 0 8px 22px rgba(35, 58, 89, 0.07);
+}
+
+.sales-filter-btn {
+  border: 0;
+  background: #f1f5fc;
+  color: #1c63c7;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.sales-search-input {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  outline: none;
+  font-size: 0.9rem;
+  color: #6b7587;
+  text-align: right;
+}
+
+.sales-pills {
+  margin: 10px 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sales-pill {
+  border: 0;
+  border-radius: 999px;
+  background: #e8edf6;
+  color: #30435f;
+  padding: 10px 14px;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.sales-pill.active {
+  background: #1b64d8;
+  color: #fff;
+}
+
+.sales-cards {
+  display: grid;
+  gap: 10px;
+}
+
+.sales-customer-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 10px;
+  border: 1px solid #e4ebf5;
+  box-shadow: 0 8px 20px rgba(43, 63, 93, 0.06);
+}
+
+.sales-card-main {
+  display: grid;
+  grid-template-columns: 94px 1fr 74px;
+  gap: 10px;
+  align-items: center;
+}
+
+.sales-card-image {
+  width: 94px;
+  height: 78px;
+  border-radius: 12px;
+  border: 1px solid #dbe4f1;
+  background: linear-gradient(140deg, #6f95c7 0%, #335786 42%, #1b3151 100%);
+}
+
+.sales-card-image[data-index="1"] {
+  background: linear-gradient(140deg, #d5aa79 0%, #7c5f42 52%, #3e3328 100%);
+}
+
+.sales-card-image[data-index="2"] {
+  background: linear-gradient(140deg, #7ca698 0%, #476f66 48%, #253d39 100%);
+}
+
+.sales-card-image[data-index="3"] {
+  background: linear-gradient(140deg, #9e8fc1 0%, #5d5380 52%, #31294b 100%);
+}
+
+.sales-card-info h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: #12243f;
+}
+
+.sales-phone {
+  margin: 4px 0 6px;
+  color: #334e6e;
+  font-size: 0.97rem;
+}
+
+.sales-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.sales-tag {
+  display: inline-flex;
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.sales-tag.status {
+  background: #e7f2ff;
+  color: #1562c2;
+}
+
+.sales-tag.villa {
+  background: #f6edd4;
+  color: #5b4b22;
+}
+
+.sales-card-date {
+  border-right: 1px solid #e9eff8;
+  padding-right: 8px;
+  text-align: center;
+}
+
+.sales-card-date strong {
+  display: block;
+  font-size: 1.6rem;
+  line-height: 1;
+  color: #1f3554;
+}
+
+.sales-card-date span {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.77rem;
+  color: #6c7890;
+}
+
+.sales-card-actions {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #edf2fa;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.sales-card-actions button {
+  border: 0;
+  background: transparent;
+  color: #2e4464;
+  font-size: 0.9rem;
+}
+
+.sales-empty {
+  text-align: center;
+  color: #596b86;
+  padding: 10px 6px;
+}
+
+.sales-logout-bottom {
+  width: 100%;
+  margin-top: 10px;
+  border: 0;
+  border-radius: 14px;
+  background: #2457ff;
+  color: #fff;
+  padding: 12px;
+  font-size: 1rem;
+  font-weight: 700;
+}
