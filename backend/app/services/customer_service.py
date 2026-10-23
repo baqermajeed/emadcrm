@@ -11,7 +11,7 @@ from app.config import get_settings
 from app.models.collections import Collections
 from app.schemas.customer import CustomerCreate, CustomerUpdate
 from app.services.user_service import UserService
-from app.utils.enums import CustomerGender, CustomerStatus, HowKnewCenter
+from app.utils.enums import CustomerGender, CustomerStatus, HowKnewCenter, ReservationStatus
 from app.utils.helpers import oid, serialize_doc, serialize_docs, utcnow
 
 ALLOWED_CONTENT_TYPES = {
