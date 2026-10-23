@@ -80,3 +80,42 @@ class ManagerDashboard {
             .toList(),
       );
 }
+
+class LiveSummary {
+  LiveSummary({
+    required this.totalBookings,
+    required this.pendingBookings,
+    required this.approvedBookings,
+    required this.missedBookings,
+    required this.todayBookings,
+    required this.totalConfirmedVisits,
+    required this.todayConfirmedVisits,
+    required this.totalCustomers,
+    required this.totalDeals,
+    required this.activeReservations,
+  });
+
+  final int totalBookings;
+  final int pendingBookings;
+  final int approvedBookings;
+  final int missedBookings;
+  final int todayBookings;
+  final int totalConfirmedVisits;
+  final int todayConfirmedVisits;
+  final int totalCustomers;
+  final int totalDeals;
+  final int activeReservations;
+
+  factory LiveSummary.fromJson(Map<String, dynamic> json) => LiveSummary(
+        totalBookings: json['total_bookings'] as int? ?? 0,
+        pendingBookings: json['pending_bookings'] as int? ?? 0,
+        approvedBookings: json['approved_bookings'] as int? ?? 0,
+        missedBookings: json['missed_bookings'] as int? ?? 0,
+        todayBookings: json['today_bookings'] as int? ?? 0,
+        totalConfirmedVisits: json['total_confirmed_visits'] as int? ?? 0,
+        todayConfirmedVisits: json['today_confirmed_visits'] as int? ?? 0,
+        totalCustomers: json['total_customers'] as int? ?? 0,
+        totalDeals: json['total_deals'] as int? ?? 0,
+        activeReservations: json['active_reservations'] as int? ?? 0,
+      );
+}

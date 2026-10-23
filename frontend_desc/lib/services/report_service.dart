@@ -10,4 +10,9 @@ class ReportService {
     final data = await _api.get('/api/reports/dashboard') as Map<String, dynamic>;
     return ManagerDashboard.fromJson(data);
   }
+
+  Future<LiveSummary> liveSummary() async {
+    final data = await _api.get('/api/reports/live-summary') as Map<String, dynamic>;
+    return LiveSummary.fromJson(data);
+  }
 }

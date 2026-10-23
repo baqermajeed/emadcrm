@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
 
 import 'controllers/auth_controller.dart';
@@ -7,6 +8,8 @@ import 'controllers/booking_controller.dart';
 import 'controllers/customer_controller.dart';
 import 'controllers/report_controller.dart';
 import 'core/api_client.dart';
+import 'core/cache_service.dart';
+import 'core/desktop_window.dart';
 import 'core/theme.dart';
 import 'screens/home_gate.dart';
 import 'services/auth_service.dart';
@@ -17,26 +20,34 @@ import 'services/report_service.dart';
 import 'services/reservation_service.dart';
 import 'services/visit_service.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(EmadCrmApp(api: ApiClient()));
+  await Hive.initFlutter();
+  final cacheBox = await Hive.openBox<String>(CacheService.boxName);
+  await setupDesktopWindow();
+  runApp(EmadCrmApp(api: ApiClient(), cache: CacheService(cacheBox)));
 }
 
 class EmadCrmApp extends StatelessWidget {
-  const EmadCrmApp({super.key, required this.api});
+  const EmadCrmApp({super.key, required this.api, required this.cache});
 
   final ApiClient api;
+  final CacheService cache;
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
         Provider<ApiClient>.value(value: api),
+        Provider<CacheService>.value(value: cache),
         ChangeNotifierProvider(
           create: (_) => AuthController(AuthService(api))..bootstrap(),
         ),
         ChangeNotifierProvider(
-          create: (_) => BookingController(BookingService(api)),
+          create: (_) => BookingController(
+            BookingService(api),
+            cache: cache,
+          ),
         ),
         ChangeNotifierProvider(
           create: (_) => CustomerController(
@@ -44,6 +55,7 @@ class EmadCrmApp extends StatelessWidget {
             visitService: VisitService(api),
             dealService: DealService(api),
             reservationService: ReservationService(api),
+            cache: cache,
           ),
         ),
         ChangeNotifierProvider(

@@ -64,4 +64,26 @@ class Deal {
         salesEmployeeName: json['sales_employee_name'] as String?,
         salesEmployeeAvatarUrl: json['sales_employee_avatar_url'] as String?,
       );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'customer_id': customerId,
+        'name': name,
+        'phone': phone,
+        'house_type': houseType.api,
+        'house_area': houseArea,
+        'residential_block': residentialBlock,
+        'house_number': houseNumber,
+        'total_price': totalPrice,
+        'payment_type': paymentType.api,
+        'down_payment': downPayment,
+        'status': status.api,
+        'sales_employee_id': salesEmployeeId,
+        'sale_date': saleDate.toUtc().toIso8601String(),
+        'profession': profession,
+        'email': email,
+        'notes': notes,
+        'sales_employee_name': salesEmployeeName,
+        'sales_employee_avatar_url': salesEmployeeAvatarUrl,
+      };
 }

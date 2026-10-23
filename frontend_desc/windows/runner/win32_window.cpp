@@ -134,8 +134,12 @@ bool Win32Window::Create(const std::wstring& title,
   UINT dpi = FlutterDesktopGetDpiForMonitor(monitor);
   double scale_factor = dpi / 96.0;
 
+  // No maximize/restore or resize grips — app stays maximized only.
+  const DWORD window_style =
+      WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZE;
+
   HWND window = CreateWindow(
-      window_class, title.c_str(), WS_OVERLAPPEDWINDOW,
+      window_class, title.c_str(), window_style,
       Scale(origin.x, scale_factor), Scale(origin.y, scale_factor),
       Scale(size.width, scale_factor), Scale(size.height, scale_factor),
       nullptr, nullptr, GetModuleHandle(nullptr), this);
@@ -144,13 +148,20 @@ bool Win32Window::Create(const std::wstring& title,
     return false;
   }
 
+  // Grey out size/move in the system menu (Alt+Space). Restore stays
+  // available so the taskbar can reopen a minimized window.
+  if (HMENU system_menu = GetSystemMenu(window, FALSE)) {
+    EnableMenuItem(system_menu, SC_SIZE, MF_BYCOMMAND | MF_GRAYED | MF_DISABLED);
+    EnableMenuItem(system_menu, SC_MOVE, MF_BYCOMMAND | MF_GRAYED | MF_DISABLED);
+  }
+
   UpdateTheme(window);
 
   return OnCreate();
 }
 
 bool Win32Window::Show() {
-  return ShowWindow(window_handle_, SW_SHOWNORMAL);
+  return ShowWindow(window_handle_, SW_SHOWMAXIMIZED);
 }
 
 // static
@@ -179,6 +190,28 @@ Win32Window::MessageHandler(HWND hwnd,
                             WPARAM const wparam,
                             LPARAM const lparam) noexcept {
   switch (message) {
+    case WM_SYSCOMMAND: {
+      const WPARAM command = wparam & 0xFFF0;
+      // Block resize / move / un-maximize from the title-bar restore button.
+      if (command == SC_SIZE || command == SC_MOVE) {
+        return 0;
+      }
+      // Taskbar click after minimize sends SC_RESTORE — allow only then,
+      // and reopen maximized (do not restore to a smaller window).
+      if (command == SC_RESTORE) {
+        if (IsIconic(hwnd)) {
+          ShowWindow(hwnd, SW_SHOWMAXIMIZED);
+          return 0;
+        }
+        return 0;
+      }
+      if (command == SC_MAXIMIZE) {
+        ShowWindow(hwnd, SW_SHOWMAXIMIZED);
+        return 0;
+      }
+      break;
+    }
+
     case WM_DESTROY:
       window_handle_ = nullptr;
       Destroy();

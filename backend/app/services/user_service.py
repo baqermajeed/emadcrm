@@ -60,10 +60,21 @@ class UserService:
     async def get_by_username(self, username: str) -> dict | None:
         return await self.col.find_one({"username": username})
 
-    async def list_users(self, role: str | None = None, active_only: bool = True) -> list[dict]:
+    async def list_users(
+        self,
+        role: str | None = None,
+        search: str | None = None,
+        active_only: bool = True,
+    ) -> list[dict]:
         query: dict = {}
         if role:
             query["role"] = role
+        if search:
+            query["$or"] = [
+                {"full_name": {"$regex": search, "$options": "i"}},
+                {"username": {"$regex": search, "$options": "i"}},
+                {"phone": {"$regex": search, "$options": "i"}},
+            ]
         if active_only:
             query["is_active"] = True
         cursor = self.col.find(query).sort("full_name", 1)

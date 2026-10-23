@@ -65,4 +65,21 @@ class Booking {
             ? DateTime.parse(json['created_at'] as String)
             : null,
       );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'phone': phone,
+        'governorate': governorate,
+        'source': source.api,
+        'visit_date': visitDate.toUtc().toIso8601String(),
+        'status': status.api,
+        'call_center_id': callCenterId,
+        'notes': notes,
+        'call_center_name': callCenterName,
+        'call_center_avatar_url': callCenterAvatarUrl,
+        'customer_id': customerId,
+        'visit_type': visitType?.api,
+        'created_at': createdAt?.toUtc().toIso8601String(),
+      };
 }

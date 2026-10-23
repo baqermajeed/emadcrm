@@ -1,4 +1,5 @@
 ﻿import 'dart:io' show Platform, Process;
+import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -11,8 +12,11 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../controllers/auth_controller.dart';
 import '../../controllers/booking_controller.dart';
+import '../../core/api_client.dart';
 import '../../core/reception_tokens.dart';
 import '../../models/booking.dart';
+import '../../models/report.dart';
+import '../../services/report_service.dart';
 import '../../utils/enums.dart';
 import '../../utils/formatters.dart';
 import '../../widgets/reception/reception_assets.dart';
@@ -34,53 +38,58 @@ class _CallCenterHomeState extends State<CallCenterHome> {
   BookingStatus? _statusFilter;
   DateTime? _fromDate;
   DateTime? _toDate;
+  LiveSummary? _summary;
+  Timer? _searchDebounce;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<BookingController>().load();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _loadBookingsFromFilters();
+      await _loadSummary();
     });
   }
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _search.dispose();
     super.dispose();
   }
 
   List<Booking> _filtered(List<Booking> items) {
-    final q = _search.text.trim().toLowerCase();
-    return items.where((b) {
-      if (_statusFilter != null) {
-        // «لم يحضر» includes cancelled + no-show.
-        if (_statusFilter == BookingStatus.noShow) {
-          if (b.effectiveStatus != BookingStatus.noShow &&
-              b.effectiveStatus != BookingStatus.cancelled) {
-            return false;
-          }
-        } else if (b.effectiveStatus != _statusFilter) {
-          return false;
-        }
-      }
-      final visit = b.visitDate.toLocal();
-      if (_fromDate != null) {
-        final from =
-            DateTime(_fromDate!.year, _fromDate!.month, _fromDate!.day);
-        if (visit.isBefore(from)) return false;
-      }
-      if (_toDate != null) {
-        final to = DateTime(
-            _toDate!.year, _toDate!.month, _toDate!.day, 23, 59, 59);
-        if (visit.isAfter(to)) return false;
-      }
-      if (q.isEmpty) return true;
-      return b.name.toLowerCase().contains(q) ||
-          b.phone.contains(q) ||
-          b.governorate.toLowerCase().contains(q) ||
-          b.source.label.contains(q) ||
-          (b.notes?.toLowerCase().contains(q) ?? false);
-    }).toList();
+    return items;
+  }
+
+  Future<void> _loadBookingsFromFilters({String? queryOverride}) async {
+    final query = (queryOverride ?? _search.text).trim();
+    await context.read<BookingController>().load(
+          status: _statusFilter,
+          search: query.isEmpty ? null : query,
+          fromDate: _fromDate,
+          toDate: _toDate == null
+              ? null
+              : DateTime(
+                  _toDate!.year,
+                  _toDate!.month,
+                  _toDate!.day,
+                  23,
+                  59,
+                  59,
+                ),
+          sortDir: 'desc',
+        );
+  }
+
+  void _runServerSearch(String query) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 300), () async {
+      final trimmed = query.trim();
+      await _loadBookingsFromFilters(queryOverride: trimmed);
+      await _loadSummary();
+      if (!mounted) return;
+      setState(() {});
+    });
   }
 
   Future<void> _pickDate({required bool from}) async {
@@ -117,17 +126,33 @@ class _CallCenterHomeState extends State<CallCenterHome> {
         }
       }
     });
+    await _loadBookingsFromFilters();
   }
 
-  void _clearDates() => setState(() {
-        _fromDate = null;
-        _toDate = null;
-      });
+  void _clearDates() {
+    setState(() {
+      _fromDate = null;
+      _toDate = null;
+    });
+    unawaited(_loadBookingsFromFilters());
+  }
 
   Future<void> _openCreate() async {
     final created = await CreateBookingScreen.show(context);
     if (created == true && mounted) {
-      await context.read<BookingController>().load();
+      await _loadBookingsFromFilters();
+      await _loadSummary();
+    }
+  }
+
+  Future<void> _loadSummary() async {
+    try {
+      final api = context.read<ApiClient>();
+      final summary = await ReportService(api).liveSummary();
+      if (!mounted) return;
+      setState(() => _summary = summary);
+    } catch (_) {
+      // keep current summary
     }
   }
 
@@ -186,16 +211,17 @@ class _CallCenterHomeState extends State<CallCenterHome> {
     final user = context.watch<AuthController>().user;
     final items = _filtered(ctrl.items);
 
-    final total = ctrl.items.length;
-    final pending =
+    final total = _summary?.totalBookings ?? ctrl.items.length;
+    final pending = _summary?.pendingBookings ??
         ctrl.items.where((b) => b.effectiveStatus == BookingStatus.pending).length;
-    final attended =
+    final attended = _summary?.approvedBookings ??
         ctrl.items.where((b) => b.effectiveStatus == BookingStatus.approved).length;
-    final missed = ctrl.items
-        .where((b) =>
-            b.effectiveStatus == BookingStatus.cancelled ||
-            b.effectiveStatus == BookingStatus.noShow)
-        .length;
+    final missed = _summary?.missedBookings ??
+        ctrl.items
+            .where((b) =>
+                b.effectiveStatus == BookingStatus.cancelled ||
+                b.effectiveStatus == BookingStatus.noShow)
+            .length;
 
     // Layout follows reception: sidebar on the right (LTR shell).
     return Directionality(
@@ -221,8 +247,8 @@ class _CallCenterHomeState extends State<CallCenterHome> {
                           for (final b in ctrl.items)
                             ...[b.name, b.phone, b.governorate, b.source.label],
                         ]),
-                        onSearch: () => setState(() {}),
-                        onQueryChanged: (_) => setState(() {}),
+                        onSearch: () => _runServerSearch(_search.text),
+                        onQueryChanged: _runServerSearch,
                         onLogout: () =>
                             context.read<AuthController>().logout(),
                       ),
@@ -230,7 +256,7 @@ class _CallCenterHomeState extends State<CallCenterHome> {
                         child: RefreshIndicator(
                           color: ReceptionTokens.teal,
                           onRefresh: () =>
-                              context.read<BookingController>().load(),
+                              _refreshAll(),
                           child: CustomScrollView(
                             physics: const AlwaysScrollableScrollPhysics(),
                             slivers: [
@@ -253,8 +279,10 @@ class _CallCenterHomeState extends State<CallCenterHome> {
                                       const SizedBox(height: 14),
                                       _FiltersRow(
                                         selected: _statusFilter,
-                                        onStatus: (v) => setState(
-                                            () => _statusFilter = v),
+                                        onStatus: (v) {
+                                          setState(() => _statusFilter = v);
+                                          unawaited(_loadBookingsFromFilters());
+                                        },
                                         fromDate: _fromDate,
                                         toDate: _toDate,
                                         onPickFrom: () =>
@@ -332,6 +360,11 @@ class _CallCenterHomeState extends State<CallCenterHome> {
         ),
       ),
     );
+  }
+
+  Future<void> _refreshAll() async {
+    await _loadBookingsFromFilters();
+    await _loadSummary();
   }
 }
 

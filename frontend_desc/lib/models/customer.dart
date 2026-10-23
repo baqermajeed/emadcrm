@@ -29,6 +29,16 @@ class CustomerDocument {
         notes: json['notes'] as String?,
       );
 
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'filename': filename,
+        'original_name': originalName,
+        'content_type': contentType,
+        'url': url,
+        'uploaded_at': uploadedAt.toUtc().toIso8601String(),
+        'notes': notes,
+      };
+
   bool get isImage => contentType.startsWith('image/');
 }
 
@@ -105,4 +115,27 @@ class Customer {
             ? DateTime.parse(json['created_at'] as String)
             : null,
       );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'phone': phone,
+        'email': email,
+        'gender': gender.api,
+        'profession': profession,
+        'address': address,
+        'call_center_id': callCenterId,
+        'call_center_name': callCenterName,
+        'call_center_avatar_url': callCenterAvatarUrl,
+        'how_knew': howKnew?.api,
+        'referral_buyer_name': referralBuyerName,
+        'sales_employee_id': salesEmployeeId,
+        'sales_employee_name': salesEmployeeName,
+        'sales_employee_avatar_url': salesEmployeeAvatarUrl,
+        'notes': notes,
+        'status': status?.api,
+        'booking_id': bookingId,
+        'documents': documents.map((e) => e.toJson()).toList(),
+        'created_at': createdAt?.toUtc().toIso8601String(),
+      };
 }

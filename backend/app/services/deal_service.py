@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from fastapi import HTTPException, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
@@ -67,6 +69,12 @@ class DealService:
         *,
         customer_id: str | None = None,
         sales_employee_id: str | None = None,
+        search: str | None = None,
+        house_type: str | None = None,
+        residential_block: str | None = None,
+        from_date: str | None = None,
+        to_date: str | None = None,
+        sort_dir: str = "desc",
         page: int = 1,
         page_size: int = 50,
     ) -> tuple[list[dict], int]:
@@ -75,12 +83,42 @@ class DealService:
             query["customer_id"] = customer_id
         if sales_employee_id:
             query["sales_employee_id"] = sales_employee_id
+        if search:
+            query["$or"] = [
+                {"name": {"$regex": search, "$options": "i"}},
+                {"phone": {"$regex": search, "$options": "i"}},
+                {"residential_block": {"$regex": search, "$options": "i"}},
+            ]
+        if house_type:
+            query["house_type"] = house_type
+        if residential_block:
+            query["residential_block"] = residential_block
+
+        date_query: dict = {}
+        if from_date:
+            parsed = self._parse_iso_datetime(from_date)
+            if parsed:
+                date_query["$gte"] = parsed
+        if to_date:
+            parsed = self._parse_iso_datetime(to_date)
+            if parsed:
+                date_query["$lte"] = parsed
+        if date_query:
+            query["sale_date"] = date_query
 
         total = await self.col.count_documents(query)
         skip = (page - 1) * page_size
-        cursor = self.col.find(query).sort("sale_date", -1).skip(skip).limit(page_size)
+        sort_value = -1 if sort_dir != "asc" else 1
+        cursor = self.col.find(query).sort("created_at", sort_value).skip(skip).limit(page_size)
         docs = serialize_docs(await cursor.to_list(page_size))
         return await self._enrich(docs), total
+
+    @staticmethod
+    def _parse_iso_datetime(raw: str) -> datetime | None:
+        try:
+            return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        except ValueError:
+            return None
 
     async def get(self, deal_id: str) -> dict:
         doc = await self.col.find_one({"_id": oid(deal_id, "deal")})

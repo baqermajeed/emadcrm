@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models.collections import Collections
@@ -106,3 +108,77 @@ class ReportService:
             if report.employee_id == employee_id:
                 return report
         raise ValueError("Employee not found in reports")
+
+    async def live_summary(self, current_user: dict) -> dict:
+        bookings = self.db[Collections.BOOKINGS]
+        customers = self.db[Collections.CUSTOMERS]
+        deals = self.db[Collections.DEALS]
+        reservations = self.db[Collections.RESERVATIONS]
+
+        booking_query: dict = {}
+        customer_query: dict = {}
+        deals_query: dict = {}
+        reservations_query: dict = {}
+
+        if current_user.get("role") == UserRole.CALL_CENTER.value:
+            actor_id = current_user["id"]
+            booking_query["call_center_id"] = actor_id
+            customer_query["call_center_id"] = actor_id
+        elif current_user.get("role") == UserRole.SALES.value:
+            actor_id = current_user["id"]
+            customer_query["sales_employee_id"] = actor_id
+            deals_query["sales_employee_id"] = actor_id
+            reservations_query["sales_employee_id"] = actor_id
+
+        now = datetime.now(UTC)
+        day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end = now.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+        total_bookings = await bookings.count_documents(booking_query)
+        pending_bookings = await bookings.count_documents(
+            {**booking_query, "status": BookingStatus.PENDING.value}
+        )
+        approved_bookings = await bookings.count_documents(
+            {**booking_query, "status": BookingStatus.APPROVED.value}
+        )
+        missed_bookings = await bookings.count_documents(
+            {
+                **booking_query,
+                "status": {
+                    "$in": [BookingStatus.CANCELLED.value, BookingStatus.NO_SHOW.value]
+                },
+            }
+        )
+        today_bookings = await bookings.count_documents(
+            {
+                **booking_query,
+                "visit_date": {"$gte": day_start, "$lte": day_end},
+            }
+        )
+        total_confirmed_visits = approved_bookings
+        today_confirmed_visits = await bookings.count_documents(
+            {
+                **booking_query,
+                "status": BookingStatus.APPROVED.value,
+                "visit_date": {"$gte": day_start, "$lte": day_end},
+            }
+        )
+
+        total_customers = await customers.count_documents(customer_query)
+        total_deals = await deals.count_documents(deals_query)
+        active_reservations = await reservations.count_documents(
+            {**reservations_query, "status": ReservationStatus.ACTIVE.value}
+        )
+
+        return {
+            "total_bookings": total_bookings,
+            "pending_bookings": pending_bookings,
+            "approved_bookings": approved_bookings,
+            "missed_bookings": missed_bookings,
+            "today_bookings": today_bookings,
+            "total_confirmed_visits": total_confirmed_visits,
+            "today_confirmed_visits": today_confirmed_visits,
+            "total_customers": total_customers,
+            "total_deals": total_deals,
+            "active_reservations": active_reservations,
+        }

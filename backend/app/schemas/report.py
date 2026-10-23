@@ -26,3 +26,16 @@ class ManagerDashboard(ORMModel):
     total_reservations_amount: float
     active_reservations: int
     staff_reports: list[StaffReport]
+
+
+class LiveSummary(ORMModel):
+    total_bookings: int
+    pending_bookings: int
+    approved_bookings: int
+    missed_bookings: int
+    today_bookings: int
+    total_confirmed_visits: int
+    today_confirmed_visits: int
+    total_customers: int
+    total_deals: int
+    active_reservations: int

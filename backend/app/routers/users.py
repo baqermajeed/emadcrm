@@ -25,6 +25,7 @@ async def list_users(
     db: Database,
     current_user: CurrentUser,
     role: UserRole | None = Query(default=None),
+    search: str | None = Query(default=None),
     include_inactive: bool = Query(default=False),
 ):
     active_only = True
@@ -34,6 +35,7 @@ async def list_users(
         active_only = False
     return await UserService(db).list_users(
         role=role.value if role else None,
+        search=search,
         active_only=active_only,
     )
 

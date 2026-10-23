@@ -1,4 +1,5 @@
-﻿import 'dart:ui' as ui;
+﻿import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -12,7 +13,9 @@ import '../../controllers/customer_controller.dart';
 import '../../core/api_client.dart';
 import '../../core/reception_tokens.dart';
 import '../../models/booking.dart';
+import '../../models/report.dart';
 import '../../models/user.dart';
+import '../../services/report_service.dart';
 import '../../services/user_service.dart';
 import '../../utils/enums.dart';
 import '../../utils/formatters.dart';
@@ -45,9 +48,11 @@ class _ReceptionHomeState extends State<ReceptionHome> {
   final _tableScroll = ScrollController();
   List<AppUser> _sales = [];
   String? _qSalesId;
+  LiveSummary? _summary;
 
   static const _pageSize = 12;
   int _page = 0;
+  Timer? _searchDebounce;
 
   void _openCustomerProfile(String customerId) {
     setState(() {
@@ -102,6 +107,7 @@ class _ReceptionHomeState extends State<ReceptionHome> {
       final api = context.read<ApiClient>();
       await bookingCtrl.load();
       await customerCtrl.load();
+      await _loadSummary(api);
       try {
         _sales = await UserService(api).list(role: UserRole.sales);
         if (_sales.isNotEmpty) _qSalesId = _sales.first.id;
@@ -112,6 +118,7 @@ class _ReceptionHomeState extends State<ReceptionHome> {
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _search.dispose();
     _qName.dispose();
     _qPhone.dispose();
@@ -119,13 +126,18 @@ class _ReceptionHomeState extends State<ReceptionHome> {
     super.dispose();
   }
 
-  bool _sameDay(DateTime a, DateTime b) {
-    final x = a.toLocal();
-    return x.year == b.year && x.month == b.month && x.day == b.day;
-  }
-
-  void _goToPage(int p) {
-    setState(() => _page = p);
+  Future<void> _goToPage(int p) async {
+    final bookings = context.read<BookingController>();
+    final neededStartIndex = p * _pageSize;
+    while (bookings.items.length <= neededStartIndex && bookings.hasMore) {
+      await bookings.loadMore();
+    }
+    if (!mounted) return;
+    final pageCount = bookings.items.isEmpty
+        ? 1
+        : ((bookings.items.length - 1) ~/ _pageSize) + 1;
+    final next = p.clamp(0, pageCount - 1);
+    setState(() => _page = next);
     if (_tableScroll.hasClients) {
       _tableScroll.animateTo(
         0,
@@ -136,32 +148,57 @@ class _ReceptionHomeState extends State<ReceptionHome> {
   }
 
   List<Booking> _rows(List<Booking> all) {
-    var list = [...all];
-    // No filters → all bookings. Filters narrow the list.
-    if (_dateFilter != null) {
-      list = list.where((b) => _sameDay(b.visitDate, _dateFilter!)).toList();
-    }
-    if (_statusFilter != null) {
-      list = list.where((b) => b.effectiveStatus == _statusFilter).toList();
-    }
-    final q = _search.text.trim().toLowerCase();
-    if (q.isNotEmpty) {
-      list = list
-          .where(
-            (b) =>
-                b.name.toLowerCase().contains(q) ||
-                b.phone.contains(q) ||
-                b.governorate.toLowerCase().contains(q),
-          )
-          .toList();
-    }
-    list.sort((a, b) => b.visitDate.compareTo(a.visitDate));
-    return list;
+    return all;
+  }
+
+  Future<void> _loadBookingsFromFilters({String? queryOverride}) async {
+    final query = (queryOverride ?? _search.text).trim();
+    final from = _dateFilter == null
+        ? null
+        : DateTime(_dateFilter!.year, _dateFilter!.month, _dateFilter!.day);
+    final to = _dateFilter == null
+        ? null
+        : DateTime(
+            _dateFilter!.year,
+            _dateFilter!.month,
+            _dateFilter!.day,
+            23,
+            59,
+            59,
+          );
+    await context.read<BookingController>().load(
+          status: _statusFilter,
+          search: query.isEmpty ? null : query,
+          fromDate: from,
+          toDate: to,
+          sortDir: 'desc',
+        );
+  }
+
+  void _runServerSearch(String query) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 300), () async {
+      final trimmed = query.trim();
+      await _loadBookingsFromFilters(queryOverride: trimmed);
+      if (!mounted) return;
+      setState(() => _page = 0);
+    });
   }
 
   Future<void> _refresh() async {
-    await context.read<BookingController>().load();
+    await _loadBookingsFromFilters();
     await context.read<CustomerController>().load();
+    await _loadSummary(context.read<ApiClient>());
+  }
+
+  Future<void> _loadSummary(ApiClient api) async {
+    try {
+      final summary = await ReportService(api).liveSummary();
+      if (!mounted) return;
+      setState(() => _summary = summary);
+    } catch (_) {
+      // keep current summary if network fails
+    }
   }
 
   Future<void> _approve(Booking b) async {
@@ -235,12 +272,9 @@ class _ReceptionHomeState extends State<ReceptionHome> {
 
   Widget _homeBody(AuthController auth, BookingController bookings) {
     final all = bookings.items;
-    final today = DateTime.now();
-    final todayList = all.where((b) => _sameDay(b.visitDate, today)).toList();
-    // اليوم = حجوزات اليوم فقط؛ المكتملة/المتبقية من كل الحجوزات.
-    final total = todayList.length;
-    final done = all.where((b) => b.effectiveStatus == BookingStatus.approved).length;
-    final left = all.where((b) => b.effectiveStatus == BookingStatus.pending).length;
+    final total = _summary?.todayBookings ?? 0;
+    final done = _summary?.approvedBookings ?? 0;
+    final left = _summary?.pendingBookings ?? 0;
     final rows = _rows(all);
     final pageCount = rows.isEmpty ? 1 : ((rows.length - 1) ~/ _pageSize) + 1;
     final safePage = _page.clamp(0, pageCount - 1);
@@ -264,8 +298,8 @@ class _ReceptionHomeState extends State<ReceptionHome> {
           suggestions: ReceptionSearchBar.uniqueOf([
             for (final b in all) ...[b.name, b.phone, b.governorate],
           ]),
-          onSearch: () => setState(() => _page = 0),
-          onQueryChanged: (_) => setState(() => _page = 0),
+          onSearch: () => _runServerSearch(_search.text),
+          onQueryChanged: _runServerSearch,
           onLogout: () => context.read<AuthController>().logout(),
         ),
         Expanded(
@@ -318,10 +352,12 @@ class _ReceptionHomeState extends State<ReceptionHome> {
                                 onStatus: (v) => setState(() {
                                   _statusFilter = v;
                                   _page = 0;
+                                  unawaited(_loadBookingsFromFilters());
                                 }),
                                 onDate: (v) => setState(() {
                                   _dateFilter = v;
                                   _page = 0;
+                                  unawaited(_loadBookingsFromFilters());
                                 }),
                                 compact: compact || short,
                               ),
@@ -349,7 +385,8 @@ class _ReceptionHomeState extends State<ReceptionHome> {
                       total: rows.length,
                       page: safePage,
                       pageCount: pageCount,
-                      onPage: _goToPage,
+                      hasMore: bookings.hasMore,
+                      onPage: (p) => _goToPage(p),
                     ),
                   ],
                 ),
@@ -942,14 +979,14 @@ class _QuickCustomerCreate extends StatelessWidget {
             _field(
               name,
               'ادخل اسم الزبون......',
-              RAssets.svg('dc_person', w: 15, h: 24),
+              RAssets.profileIcon(RAssets.fieldNameIcon, size: 18),
               formatters: [PersonNameInputFormatter()],
             ),
             SizedBox(height: gap),
             _field(
               phone,
               '07xxxxxxxxx',
-              RAssets.svg('dc_phone', w: 16, h: 16),
+              RAssets.profileIcon(RAssets.fieldPhoneIcon, size: 18),
               keyboard: TextInputType.phone,
               formatters: [IraqPhoneInputFormatter()],
             ),
@@ -965,7 +1002,7 @@ class _QuickCustomerCreate extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  RAssets.svg('dc_people', w: 30, h: 30),
+                  RAssets.profileIcon(RAssets.fieldSalesIcon, size: 22),
                   const SizedBox(width: 8),
                   Expanded(
                     child: DropdownButtonHideUnderline(
@@ -1600,11 +1637,10 @@ class _BookingsTable extends StatelessWidget {
               ),
             ),
             SizedBox(width: compact ? 4 : 6),
-            Image.asset(
+            RAssets.profileIcon(
               RAssets.confirmAttendanceIcon,
-              width: compact ? 10 : 12,
-              height: compact ? 13 : 16,
-              fit: BoxFit.contain,
+              size: compact ? 16 : 18,
+              color: Colors.white,
             ),
           ],
         ),
@@ -1732,6 +1768,7 @@ class _BookingsPagination extends StatelessWidget {
     required this.total,
     required this.page,
     required this.pageCount,
+    required this.hasMore,
     required this.onPage,
   });
 
@@ -1740,6 +1777,7 @@ class _BookingsPagination extends StatelessWidget {
   final int total;
   final int page;
   final int pageCount;
+  final bool hasMore;
   final ValueChanged<int> onPage;
 
   @override
@@ -1811,7 +1849,9 @@ class _BookingsPagination extends StatelessWidget {
               );
             }),
             IconButton(
-              onPressed: page < pageCount - 1 ? () => onPage(page + 1) : null,
+              onPressed: (page < pageCount - 1 || hasMore)
+                  ? () => onPage(page + 1)
+                  : null,
               icon: const Icon(Icons.chevron_left, size: 20),
               color: ReceptionTokens.confirmBlue,
               visualDensity: VisualDensity.compact,

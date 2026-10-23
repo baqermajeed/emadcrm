@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 from pathlib import Path
 
 import aiofiles
@@ -72,6 +73,10 @@ class CustomerService:
         *,
         sales_employee_id: str | None = None,
         search: str | None = None,
+        status: str | None = None,
+        from_date: str | None = None,
+        to_date: str | None = None,
+        sort_dir: str = "desc",
         page: int = 1,
         page_size: int = 50,
     ) -> tuple[list[dict], int]:
@@ -83,12 +88,34 @@ class CustomerService:
                 {"name": {"$regex": search, "$options": "i"}},
                 {"phone": {"$regex": search, "$options": "i"}},
             ]
+        if status:
+            query["status"] = status
+
+        date_query: dict = {}
+        if from_date:
+            parsed = self._parse_iso_datetime(from_date)
+            if parsed:
+                date_query["$gte"] = parsed
+        if to_date:
+            parsed = self._parse_iso_datetime(to_date)
+            if parsed:
+                date_query["$lte"] = parsed
+        if date_query:
+            query["created_at"] = date_query
 
         total = await self.col.count_documents(query)
         skip = (page - 1) * page_size
-        cursor = self.col.find(query).sort("created_at", -1).skip(skip).limit(page_size)
+        sort_value = -1 if sort_dir != "asc" else 1
+        cursor = self.col.find(query).sort("created_at", sort_value).skip(skip).limit(page_size)
         docs = serialize_docs(await cursor.to_list(page_size))
         return await self._enrich(docs), total
+
+    @staticmethod
+    def _parse_iso_datetime(raw: str) -> datetime | None:
+        try:
+            return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        except ValueError:
+            return None
 
     async def create(self, data: CustomerCreate) -> dict:
         if data.sales_employee_id:

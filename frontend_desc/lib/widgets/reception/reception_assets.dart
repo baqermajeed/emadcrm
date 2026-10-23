@@ -12,7 +12,10 @@ class RAssets {
   static const avatar = '$_img/avatar.png';
   static const attendedIcon = '$_status/attended.png';
   static const pendingIcon = '$_status/pending.png';
-  static const confirmAttendanceIcon = '$_status/confirm_attendance.png';
+  static const confirmAttendanceIcon = '$_status/takid.png';
+  static const fieldNameIcon = '$_status/asm.png';
+  static const fieldPhoneIcon = '$_status/rqm.png';
+  static const fieldSalesIcon = '$_status/mbiaat.png';
   static const viewProfileIcon = '$_status/view_profile.png';
   static const bookingSourceIcon = '$_status/booking_source.png';
   static const bookingDateIcon = '$_status/booking_date.png';
@@ -61,7 +64,7 @@ class RAssets {
   static const cardDate = '$_prof/lastvisit.png';
 
   /// Decodes at device pixel ratio so 30×30 icons stay sharp on HiDPI screens.
-  static Widget profileIcon(String asset, {double size = 30}) {
+  static Widget profileIcon(String asset, {double size = 30, Color? color}) {
     return Builder(
       builder: (context) {
         final dpr = MediaQuery.devicePixelRatioOf(context);
@@ -75,6 +78,8 @@ class RAssets {
           isAntiAlias: true,
           cacheWidth: px,
           cacheHeight: px,
+          color: color,
+          colorBlendMode: color == null ? null : BlendMode.srcIn,
         );
       },
     );

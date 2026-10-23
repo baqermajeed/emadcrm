@@ -1,4 +1,5 @@
-﻿import 'dart:typed_data';
+﻿import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -30,6 +31,7 @@ class _UsersManagementScreenState extends State<UsersManagementScreen> {
   bool _loading = true;
   String? _error;
   UserRole? _roleFilter;
+  Timer? _searchDebounce;
 
   @override
   void initState() {
@@ -39,17 +41,20 @@ class _UsersManagementScreenState extends State<UsersManagementScreen> {
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _search.dispose();
     super.dispose();
   }
 
-  Future<void> _load() async {
+  Future<void> _load({String? search, UserRole? role}) async {
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
       final users = await UserService(context.read<ApiClient>()).list(
+        role: role,
+        search: search,
         includeInactive: true,
       );
       if (!mounted) return;
@@ -74,22 +79,18 @@ class _UsersManagementScreenState extends State<UsersManagementScreen> {
 
   List<AppUser> get _filtered {
     var list = [..._users];
-    if (_roleFilter != null) {
-      list = list.where((u) => u.role == _roleFilter).toList();
-    }
-    final q = _search.text.trim().toLowerCase();
-    if (q.isNotEmpty) {
-      list = list
-          .where(
-            (u) =>
-                u.fullName.toLowerCase().contains(q) ||
-                u.username.toLowerCase().contains(q) ||
-                (u.phone?.contains(q) ?? false),
-          )
-          .toList();
-    }
     list.sort((a, b) => a.fullName.compareTo(b.fullName));
     return list;
+  }
+
+  void _runServerSearch(String query) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+      _load(
+        role: _roleFilter,
+        search: query.trim().isEmpty ? null : query.trim(),
+      );
+    });
   }
 
   Future<void> _openEditor({AppUser? user}) async {
@@ -156,7 +157,7 @@ class _UsersManagementScreenState extends State<UsersManagementScreen> {
                   flex: 2,
                   child: TextField(
                     controller: _search,
-                    onChanged: (_) => setState(() {}),
+                    onChanged: _runServerSearch,
                     decoration: InputDecoration(
                       hintText: 'بحث بالاسم أو اسم الدخول أو الهاتف',
                       prefixIcon: const Icon(Icons.search_rounded),
@@ -203,7 +204,17 @@ class _UsersManagementScreenState extends State<UsersManagementScreen> {
                         ),
                       ),
                     ],
-                    onChanged: (v) => setState(() => _roleFilter = v),
+                    onChanged: (v) {
+                      setState(() => _roleFilter = v);
+                      unawaited(
+                        _load(
+                          role: v,
+                          search: _search.text.trim().isEmpty
+                              ? null
+                              : _search.text.trim(),
+                        ),
+                      );
+                    },
                   ),
                 ),
               ],

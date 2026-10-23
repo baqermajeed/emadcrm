@@ -1,4 +1,5 @@
-﻿import 'dart:ui' as ui;
+﻿import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -6,13 +7,12 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../controllers/auth_controller.dart';
-import '../../controllers/booking_controller.dart';
 import '../../controllers/customer_controller.dart';
 import '../../core/api_client.dart';
 import '../../core/reception_tokens.dart';
 import '../../models/customer.dart';
-import '../../services/deal_service.dart';
-import '../../services/reservation_service.dart';
+import '../../models/report.dart';
+import '../../services/report_service.dart';
 import '../../utils/enums.dart';
 import '../../utils/formatters.dart';
 import '../../widgets/reception/reception_assets.dart';
@@ -36,6 +36,7 @@ class CustomerFilesScreen extends StatefulWidget {
 class _CustomerFilesScreenState extends State<CustomerFilesScreen> {
   final _headerSearch = TextEditingController();
   final _filterSearch = TextEditingController();
+  final _scroll = ScrollController();
 
   CustomerStatus? _statusFilter;
   DateTime? _fromDate;
@@ -46,34 +47,51 @@ class _CustomerFilesScreenState extends State<CustomerFilesScreen> {
   bool _grid = true;
 
   // Applied filters (after «تطبيق الفلتر»)
-  String _appliedQuery = '';
-  CustomerStatus? _appliedStatus;
-  DateTime? _appliedFrom;
-  DateTime? _appliedTo;
+  Timer? _searchDebounce;
 
   int _dealsCount = 0;
   int _reservationsCount = 0;
   bool _statsLoading = true;
+  LiveSummary? _summary;
 
   @override
   void initState() {
     super.initState();
+    _scroll.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) => _bootstrap());
   }
 
   Future<void> _bootstrap() async {
     final customers = context.read<CustomerController>();
     final api = context.read<ApiClient>();
-    if (customers.items.isEmpty) await customers.load();
+    if (customers.items.isEmpty) {
+      await customers.load();
+    } else {
+      // Keep data fresh without blocking first paint.
+      customers.load();
+    }
+    await _loadSummary(api);
+  }
+
+  Future<void> _loadCustomersFromFilters({String? queryOverride}) async {
+    final query = (queryOverride ?? _headerSearch.text).trim();
+    await context.read<CustomerController>().load(
+          search: query.isEmpty ? null : query,
+          status: _statusFilter,
+          fromDate: _fromDate,
+          toDate: _toDate,
+          sortDir: _sort == 'oldest' ? 'asc' : 'desc',
+        );
+  }
+
+  Future<void> _loadSummary(ApiClient api) async {
     try {
-      final deals = await DealService(api).list();
-      final reservations = await ReservationService(api).list();
+      final summary = await ReportService(api).liveSummary();
       if (!mounted) return;
       setState(() {
-        _dealsCount = deals.length;
-        _reservationsCount = reservations
-            .where((r) => r.status == ReservationStatus.active)
-            .length;
+        _summary = summary;
+        _dealsCount = summary.totalDeals;
+        _reservationsCount = summary.activeReservations;
         _statsLoading = false;
       });
     } catch (_) {
@@ -83,20 +101,26 @@ class _CustomerFilesScreenState extends State<CustomerFilesScreen> {
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _headerSearch.dispose();
     _filterSearch.dispose();
+    _scroll.dispose();
     super.dispose();
   }
 
+  void _onScroll() {
+    if (!_scroll.hasClients) return;
+    if (_scroll.position.extentAfter > 320) return;
+    context.read<CustomerController>().loadMore();
+  }
+
   void _applyFilters() {
+    final query = _filterSearch.text.trim().isNotEmpty
+        ? _filterSearch.text.trim()
+        : _headerSearch.text.trim();
     setState(() {
-      _appliedQuery = _filterSearch.text.trim().isNotEmpty
-          ? _filterSearch.text.trim()
-          : _headerSearch.text.trim();
-      _appliedStatus = _statusFilter;
-      _appliedFrom = _fromDate;
-      _appliedTo = _toDate;
     });
+    unawaited(_loadCustomersFromFilters(queryOverride: query));
   }
 
   void _resetFilters() {
@@ -108,68 +132,12 @@ class _CustomerFilesScreenState extends State<CustomerFilesScreen> {
       _toDate = null;
       _complex = 'all';
       _houseType = 'all';
-      _appliedQuery = '';
-      _appliedStatus = null;
-      _appliedFrom = null;
-      _appliedTo = null;
     });
-  }
-
-  bool _sameDay(DateTime a, DateTime b) {
-    final x = a.toLocal();
-    final y = b.toLocal();
-    return x.year == y.year && x.month == y.month && x.day == y.day;
+    unawaited(_loadCustomersFromFilters(queryOverride: ''));
   }
 
   List<Customer> _filtered(List<Customer> all) {
-    var list = [...all];
-    final q = _appliedQuery.trim().toLowerCase();
-    if (q.isNotEmpty) {
-      list = list
-          .where(
-            (c) =>
-                c.name.toLowerCase().contains(q) || c.phone.contains(q),
-          )
-          .toList();
-    }
-    if (_appliedStatus != null) {
-      list = list.where((c) => c.status == _appliedStatus).toList();
-    }
-    if (_appliedFrom != null) {
-      list = list.where((c) {
-        final d = c.createdAt;
-        if (d == null) return false;
-        final local = d.toLocal();
-        final from = DateTime(
-          _appliedFrom!.year,
-          _appliedFrom!.month,
-          _appliedFrom!.day,
-        );
-        return !local.isBefore(from);
-      }).toList();
-    }
-    if (_appliedTo != null) {
-      list = list.where((c) {
-        final d = c.createdAt;
-        if (d == null) return false;
-        final local = d.toLocal();
-        final to = DateTime(
-          _appliedTo!.year,
-          _appliedTo!.month,
-          _appliedTo!.day,
-          23,
-          59,
-          59,
-        );
-        return !local.isAfter(to);
-      }).toList();
-    }
-    list.sort((a, b) {
-      final ad = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-      final bd = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-      return _sort == 'newest' ? bd.compareTo(ad) : ad.compareTo(bd);
-    });
-    return list;
+    return all;
   }
 
   Future<void> _pickDate({required bool from}) async {
@@ -190,19 +158,19 @@ class _CustomerFilesScreenState extends State<CustomerFilesScreen> {
     });
   }
 
+  void _runServerSearch(String query) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 300), () async {
+      final trimmed = query.trim();
+      await _loadCustomersFromFilters(queryOverride: trimmed);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthController>();
     final customers = context.watch<CustomerController>();
-    final bookings = context.watch<BookingController>();
-    final today = DateTime.now();
-    final attendedToday = bookings.items
-        .where(
-          (b) =>
-              b.status == BookingStatus.approved &&
-              _sameDay(b.visitDate, today),
-        )
-        .length;
+    final attendedToday = _summary?.todayConfirmedVisits ?? 0;
 
     final list = _filtered(customers.items);
     final userName = displayUserName(auth.user);
@@ -221,12 +189,8 @@ class _CustomerFilesScreenState extends State<CustomerFilesScreen> {
               suggestions: ReceptionSearchBar.uniqueOf([
                 for (final c in customers.items) ...[c.name, c.phone],
               ]),
-              onSearch: () {
-                setState(() => _appliedQuery = _headerSearch.text.trim());
-              },
-              onQueryChanged: (q) {
-                setState(() => _appliedQuery = q.trim());
-              },
+              onSearch: () => _runServerSearch(_headerSearch.text),
+              onQueryChanged: _runServerSearch,
               onLogout: () => context.read<AuthController>().logout(),
               onAdd: () async {
                 final ok = await EditCustomerScreen.showAdd(context);
@@ -244,11 +208,11 @@ class _CustomerFilesScreenState extends State<CustomerFilesScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     _StatsRow(
-                      totalCustomers: customers.items.length,
+                      totalCustomers: _summary?.totalCustomers ?? 0,
                       attendedToday: attendedToday,
                       reservations: _reservationsCount,
                       deals: _dealsCount,
-                      loading: _statsLoading && customers.loading,
+                      loading: _statsLoading,
                     ),
                     const SizedBox(height: 14),
                     Expanded(
@@ -280,7 +244,10 @@ class _CustomerFilesScreenState extends State<CustomerFilesScreen> {
                                   grid: _grid,
                                   sort: _sort,
                                   onGrid: (v) => setState(() => _grid = v),
-                                  onSort: (v) => setState(() => _sort = v),
+                                  onSort: (v) {
+                                    setState(() => _sort = v);
+                                    unawaited(_loadCustomersFromFilters());
+                                  },
                                 ),
                                 const SizedBox(height: 12),
                                 Expanded(
@@ -299,13 +266,26 @@ class _CustomerFilesScreenState extends State<CustomerFilesScreen> {
                                           : _grid
                                               ? _CustomerGrid(
                                                   customers: list,
+                                                  controller: _scroll,
                                                   onOpen: widget.onOpenCustomer,
                                                 )
                                               : _CustomerList(
                                                   customers: list,
+                                                  controller: _scroll,
                                                   onOpen: widget.onOpenCustomer,
                                                 ),
                                 ),
+                                if (customers.loadingMore)
+                                  const Padding(
+                                    padding: EdgeInsets.only(top: 10),
+                                    child: Center(
+                                      child: SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                      ),
+                                    ),
+                                  ),
                               ],
                             ),
                           ),
@@ -1116,14 +1096,20 @@ class _FilterPanel extends StatelessWidget {
 // ───────────────────────── Grid / List ─────────────────────────
 
 class _CustomerGrid extends StatelessWidget {
-  const _CustomerGrid({required this.customers, required this.onOpen});
+  const _CustomerGrid({
+    required this.customers,
+    required this.onOpen,
+    required this.controller,
+  });
 
   final List<Customer> customers;
   final ValueChanged<String> onOpen;
+  final ScrollController controller;
 
   @override
   Widget build(BuildContext context) {
     return GridView.builder(
+      controller: controller,
       padding: const EdgeInsets.fromLTRB(4, 4, 4, 12),
       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
         maxCrossAxisExtent: 220,
@@ -1141,14 +1127,20 @@ class _CustomerGrid extends StatelessWidget {
 }
 
 class _CustomerList extends StatelessWidget {
-  const _CustomerList({required this.customers, required this.onOpen});
+  const _CustomerList({
+    required this.customers,
+    required this.onOpen,
+    required this.controller,
+  });
 
   final List<Customer> customers;
   final ValueChanged<String> onOpen;
+  final ScrollController controller;
 
   @override
   Widget build(BuildContext context) {
     return ListView.separated(
+      controller: controller,
       itemCount: customers.length,
       separatorBuilder: (_, _) => const SizedBox(height: 10),
       itemBuilder: (context, i) {

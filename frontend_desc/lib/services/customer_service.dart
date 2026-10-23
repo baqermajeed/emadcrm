@@ -1,4 +1,5 @@
 import '../core/api_client.dart';
+import '../core/pagination.dart';
 import '../models/customer.dart';
 import '../utils/enums.dart';
 
@@ -14,6 +15,42 @@ class CustomerService {
     return (data['items'] as List<dynamic>)
         .map((e) => Customer.fromJson(e as Map<String, dynamic>))
         .toList();
+  }
+
+  Future<PagedResult<Customer>> listPaged({
+    String? search,
+    String? status,
+    DateTime? fromDate,
+    DateTime? toDate,
+    String sortDir = 'desc',
+    int page = 1,
+    int pageSize = 30,
+  }) async {
+    final query = <String, String>{
+      'page': '$page',
+      'page_size': '$pageSize',
+      'sort_dir': sortDir,
+    };
+    if (search != null && search.isNotEmpty) query['search'] = search;
+    if (status != null && status.isNotEmpty) query['status'] = status;
+    if (fromDate != null) query['from_date'] = fromDate.toUtc().toIso8601String();
+    if (toDate != null) query['to_date'] = toDate.toUtc().toIso8601String();
+    final data = await _api.get('/api/customers', query: query) as Map<String, dynamic>;
+    final rawItems = (data['items'] as List<dynamic>? ?? const <dynamic>[])
+        .cast<Map<String, dynamic>>();
+    final items = rawItems.map(Customer.fromJson).toList();
+    final total = (data['total'] as num?)?.toInt();
+    final resolvedPageSize = (data['page_size'] as num?)?.toInt() ?? pageSize;
+    final hasMore = (total != null)
+        ? (page * resolvedPageSize) < total
+        : items.length >= resolvedPageSize;
+    return PagedResult<Customer>(
+      items: items,
+      page: (data['page'] as num?)?.toInt() ?? page,
+      limit: resolvedPageSize,
+      hasMore: hasMore,
+      total: total,
+    );
   }
 
   Future<Customer> get(String id) async {

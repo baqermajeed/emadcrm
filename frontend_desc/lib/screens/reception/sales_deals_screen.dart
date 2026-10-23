@@ -1,4 +1,5 @@
 ﻿import 'dart:ui' as ui;
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -9,11 +10,15 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../controllers/auth_controller.dart';
 import '../../controllers/customer_controller.dart';
 import '../../core/api_client.dart';
+import '../../core/cache_service.dart';
+import '../../core/pagination.dart';
 import '../../core/reception_tokens.dart';
 import '../../models/customer.dart';
 import '../../models/deal.dart';
+import '../../models/report.dart';
 import '../../models/user.dart';
 import '../../services/deal_service.dart';
+import '../../services/report_service.dart';
 import '../../services/user_service.dart';
 import '../../utils/enums.dart';
 import '../../utils/formatters.dart';
@@ -39,6 +44,10 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
   List<Deal> _deals = [];
   List<AppUser> _sales = [];
   bool _loading = true;
+  bool _loadingMore = false;
+  bool _hasMore = true;
+  int _serverPage = 0;
+  LiveSummary? _summary;
 
   String _appliedSearch = '';
   String _sort = 'newest';
@@ -50,7 +59,9 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
   bool _grid = true;
 
   static const _pageSize = 12;
+  static const _fetchPageSize = 30;
   int _page = 0;
+  Timer? _searchDebounce;
 
   @override
   void initState() {
@@ -58,8 +69,14 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _bootstrap());
   }
 
-  void _goToPage(int p) {
-    setState(() => _page = p);
+  Future<void> _goToPage(int p) async {
+    final neededStart = p * _pageSize;
+    while (_deals.length <= neededStart && _hasMore && !_loadingMore) {
+      await _loadMoreDeals();
+    }
+    if (!mounted) return;
+    final pageCount = _deals.isEmpty ? 1 : ((_deals.length - 1) ~/ _pageSize) + 1;
+    setState(() => _page = p.clamp(0, pageCount - 1));
     if (_scroll.hasClients) {
       _scroll.animateTo(
         0,
@@ -71,15 +88,43 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
 
   Future<void> _bootstrap() async {
     final api = context.read<ApiClient>();
+    final cache = context.read<CacheService>();
     final customers = context.read<CustomerController>();
     if (customers.items.isEmpty) await customers.load();
+    final cached = cache.readMap(
+      _dealsCacheKey(page: 1, search: _appliedSearch),
+    );
+    if (cached != null) {
+      final raw = (cached['items'] as List<dynamic>? ?? const <dynamic>[]);
+      _deals = raw
+          .map((e) => e is Map<String, dynamic> ? e : Map<String, dynamic>.from(e as Map))
+          .map(Deal.fromJson)
+          .toList();
+      _hasMore = cached['has_more'] as bool? ?? true;
+      _serverPage = 1;
+      _loading = false;
+      if (mounted) setState(() {});
+      _refreshFirstPageInBackground();
+    }
     try {
-      final deals = await DealService(api).list();
+      if (cached == null) {
+        final result = await _fetchDealsPage(api, 1);
+        _deals = result.items;
+        _hasMore = result.hasMore;
+        _serverPage = 1;
+        await cache.writeMap(_dealsCacheKey(page: 1, search: _appliedSearch), {
+          'items': result.items.map((e) => e.toJson()).toList(),
+          'has_more': result.hasMore,
+          'total': result.total,
+          'saved_at': DateTime.now().toUtc().toIso8601String(),
+        });
+      }
       final sales = await UserService(api).list(role: UserRole.sales);
+      final summary = await ReportService(api).liveSummary();
       if (!mounted) return;
       setState(() {
-        _deals = deals;
         _sales = sales;
+        _summary = summary;
         _loading = false;
       });
     } catch (_) {
@@ -88,19 +133,118 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
   }
 
   Future<void> _reloadDeals() async {
+    final cache = context.read<CacheService>();
+    await cache.removeByPrefix('deals');
+    _serverPage = 0;
+    _hasMore = true;
     final api = context.read<ApiClient>();
     try {
-      final deals = await DealService(api).list();
+      final result = await _fetchDealsPage(api, 1);
+      final summary = await ReportService(api).liveSummary();
       if (!mounted) return;
       setState(() {
-        _deals = deals;
+        _deals = result.items;
+        _serverPage = 1;
+        _hasMore = result.hasMore;
+        _summary = summary;
         _page = 0;
+      });
+      await cache.writeMap(_dealsCacheKey(page: 1, search: _appliedSearch), {
+        'items': result.items.map((e) => e.toJson()).toList(),
+        'has_more': result.hasMore,
+        'total': result.total,
+        'saved_at': DateTime.now().toUtc().toIso8601String(),
       });
     } catch (_) {}
   }
 
+  Future<void> _refreshFirstPageInBackground() async {
+    final api = context.read<ApiClient>();
+    final cache = context.read<CacheService>();
+    try {
+      final result = await _fetchDealsPage(api, 1);
+      final summary = await ReportService(api).liveSummary();
+      if (!mounted) return;
+      setState(() {
+        _deals = result.items;
+        _hasMore = result.hasMore;
+        _serverPage = 1;
+        _summary = summary;
+      });
+      await cache.writeMap(_dealsCacheKey(page: 1, search: _appliedSearch), {
+        'items': result.items.map((e) => e.toJson()).toList(),
+        'has_more': result.hasMore,
+        'total': result.total,
+        'saved_at': DateTime.now().toUtc().toIso8601String(),
+      });
+    } catch (_) {
+      // keep cached data
+    }
+  }
+
+  Future<void> _loadMoreDeals() async {
+    if (_loadingMore || !_hasMore) return;
+    setState(() => _loadingMore = true);
+    final nextPage = _serverPage + 1;
+    final cache = context.read<CacheService>();
+    final cached = cache.readMap(
+      _dealsCacheKey(page: nextPage, search: _appliedSearch),
+    );
+    if (cached != null) {
+      final raw = (cached['items'] as List<dynamic>? ?? const <dynamic>[]);
+      final parsed = raw
+          .map((e) => e is Map<String, dynamic> ? e : Map<String, dynamic>.from(e as Map))
+          .map(Deal.fromJson)
+          .toList();
+      if (mounted) {
+        setState(() {
+          _deals.addAll(parsed);
+          _serverPage = nextPage;
+          _hasMore = cached['has_more'] as bool? ?? false;
+          _loadingMore = false;
+        });
+      }
+      return;
+    }
+
+    final api = context.read<ApiClient>();
+    try {
+      final result = await _fetchDealsPage(api, nextPage);
+      if (!mounted) return;
+      setState(() {
+        _deals.addAll(result.items);
+        _serverPage = nextPage;
+        _hasMore = result.hasMore;
+        _loadingMore = false;
+      });
+      await cache.writeMap(
+        _dealsCacheKey(page: nextPage, search: _appliedSearch),
+        {
+        'items': result.items.map((e) => e.toJson()).toList(),
+        'has_more': result.hasMore,
+        'total': result.total,
+        'saved_at': DateTime.now().toUtc().toIso8601String(),
+        },
+      );
+    } catch (_) {
+      if (mounted) setState(() => _loadingMore = false);
+    }
+  }
+
+  String _dealsCacheKey({required int page, required String search}) {
+    final safeSearch = Uri.encodeComponent(search);
+    final sales = _salesId ?? '';
+    final house = _houseType;
+    final complex = _complex;
+    final from = _fromDate?.toUtc().toIso8601String() ?? '';
+    final to = _toDate?.toUtc().toIso8601String() ?? '';
+    final sort = _sort;
+    return 'deals:search=$safeSearch:sales=$sales:house=$house:complex=$complex:from=$from:to=$to:sort=$sort:page=$page:limit=$_fetchPageSize';
+  }
+
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _search.dispose();
     _scroll.dispose();
     super.dispose();
@@ -118,6 +262,22 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
     return d.houseType.label;
   }
 
+  Future<PagedResult<Deal>> _fetchDealsPage(ApiClient api, int page) {
+    return DealService(api).listPaged(
+      page: page,
+      pageSize: _fetchPageSize,
+      search: _appliedSearch.isEmpty ? null : _appliedSearch,
+      salesEmployeeId: _salesId,
+      houseType: _houseType == 'all' ? null : _houseType,
+      residentialBlock: _complex == 'all' ? null : _complex,
+      fromDate: _fromDate,
+      toDate: _toDate == null
+          ? null
+          : DateTime(_toDate!.year, _toDate!.month, _toDate!.day, 23, 59, 59),
+      sortDir: _sort == 'oldest' ? 'asc' : 'desc',
+    );
+  }
+
   List<String> get _complexOptions {
     final set = <String>{};
     for (final d in _deals) {
@@ -128,43 +288,7 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
     return list;
   }
 
-  List<Deal> _filtered() {
-    var list = [..._deals];
-    if (_appliedSearch.isNotEmpty) {
-      final q = _appliedSearch.toLowerCase();
-      list = list.where((d) {
-        return d.name.toLowerCase().contains(q) ||
-            d.phone.contains(q) ||
-            d.id.toLowerCase().contains(q);
-      }).toList();
-    }
-    if (_salesId != null) {
-      list = list.where((d) => d.salesEmployeeId == _salesId).toList();
-    }
-    if (_complex != 'all') {
-      list = list.where((d) => d.residentialBlock == _complex).toList();
-    }
-    if (_houseType != 'all') {
-      list = list.where((d) => d.houseType.api == _houseType).toList();
-    }
-    if (_fromDate != null) {
-      final from = DateTime(_fromDate!.year, _fromDate!.month, _fromDate!.day);
-      list = list.where((d) {
-        final x = d.saleDate.toLocal();
-        return !DateTime(x.year, x.month, x.day).isBefore(from);
-      }).toList();
-    }
-    if (_toDate != null) {
-      final to = DateTime(_toDate!.year, _toDate!.month, _toDate!.day, 23, 59, 59);
-      list = list.where((d) => !d.saleDate.toLocal().isAfter(to)).toList();
-    }
-    list.sort((a, b) {
-      return _sort == 'newest'
-          ? b.saleDate.compareTo(a.saleDate)
-          : a.saleDate.compareTo(b.saleDate);
-    });
-    return list;
-  }
+  List<Deal> _filtered() => _deals;
 
   Future<void> _pickDate({required bool from}) async {
     final initial = from ? (_fromDate ?? DateTime.now()) : (_toDate ?? DateTime.now());
@@ -183,6 +307,7 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
       }
       _page = 0;
     });
+    await _reloadDeals();
   }
 
   void _resetFilters() {
@@ -197,11 +322,28 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
       _appliedSearch = '';
       _page = 0;
     });
+    _runServerSearch('');
+  }
+
+  void _runServerSearch(String query) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 300), () async {
+      final trimmed = query.trim();
+      if (_appliedSearch == trimmed && _deals.isNotEmpty) return;
+      setState(() {
+        _appliedSearch = trimmed;
+        _page = 0;
+      });
+      await _reloadDeals();
+    });
   }
 
   Future<void> _addDeal() async {
     final customers = context.read<CustomerController>();
-    if (customers.items.isEmpty) await customers.load();
+    if (customers.items.isEmpty) {
+      await customers.load();
+    }
+    await customers.loadAllPages();
     if (!mounted) return;
 
     final customer = await showDialog<Customer>(
@@ -222,7 +364,9 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
 
   Future<void> _openDeal(Deal deal) async {
     final customers = context.read<CustomerController>();
-    if (customers.items.isEmpty) await customers.load();
+    if (customers.items.isEmpty) {
+      await customers.load();
+    }
     if (!mounted) return;
 
     Customer? customer;
@@ -230,6 +374,15 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
       if (c.id == deal.customerId) {
         customer = c;
         break;
+      }
+    }
+    if (customer == null) {
+      await customers.loadAllPages();
+      for (final c in customers.items) {
+        if (c.id == deal.customerId) {
+          customer = c;
+          break;
+        }
       }
     }
     if (customer == null) {
@@ -276,7 +429,7 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthController>();
     final filtered = _filtered();
-    final totalAll = _deals.length;
+    final totalAll = _summary?.totalDeals ?? _deals.length;
     final pageCount = filtered.isEmpty ? 1 : ((filtered.length - 1) ~/ _pageSize) + 1;
     final safePage = _page.clamp(0, pageCount - 1);
     if (safePage != _page) {
@@ -310,14 +463,8 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
             suggestions: ReceptionSearchBar.uniqueOf([
               for (final d in _deals) ...[d.name, d.phone, d.id],
             ]),
-            onSearch: () => setState(() {
-              _appliedSearch = _search.text.trim();
-              _page = 0;
-            }),
-            onQueryChanged: (q) => setState(() {
-              _appliedSearch = q.trim();
-              _page = 0;
-            }),
+            onSearch: () => _runServerSearch(_search.text),
+            onQueryChanged: _runServerSearch,
             onLogout: () => context.read<AuthController>().logout(),
           ),
           Expanded(
@@ -342,22 +489,34 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
                     fromDate: _fromDate,
                     toDate: _toDate,
                     grid: _grid,
-                    onSales: (v) => setState(() {
-                      _salesId = v;
-                      _page = 0;
-                    }),
-                    onSort: (v) => setState(() {
-                      _sort = v;
-                      _page = 0;
-                    }),
-                    onHouseType: (v) => setState(() {
-                      _houseType = v;
-                      _page = 0;
-                    }),
-                    onComplex: (v) => setState(() {
-                      _complex = v;
-                      _page = 0;
-                    }),
+                    onSales: (v) {
+                      setState(() {
+                        _salesId = v;
+                        _page = 0;
+                      });
+                      unawaited(_reloadDeals());
+                    },
+                    onSort: (v) {
+                      setState(() {
+                        _sort = v;
+                        _page = 0;
+                      });
+                      unawaited(_reloadDeals());
+                    },
+                    onHouseType: (v) {
+                      setState(() {
+                        _houseType = v;
+                        _page = 0;
+                      });
+                      unawaited(_reloadDeals());
+                    },
+                    onComplex: (v) {
+                      setState(() {
+                        _complex = v;
+                        _page = 0;
+                      });
+                      unawaited(_reloadDeals());
+                    },
                     onPickFrom: () => _pickDate(from: true),
                     onPickTo: () => _pickDate(from: false),
                     onGrid: (v) => setState(() => _grid = v),
@@ -404,7 +563,9 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
                     total: filtered.length,
                     page: safePage,
                     pageCount: pageCount,
-                    onPage: _goToPage,
+                      hasMore: _hasMore,
+                      loadingMore: _loadingMore,
+                      onPage: (p) => _goToPage(p),
                   ),
                 ],
               ),
@@ -622,7 +783,6 @@ class _StatCard extends StatelessWidget {
     required this.iconAsset,
     required this.accent,
     required this.iconBg,
-    this.valueSize = 24,
   });
 
   final String label;
@@ -630,7 +790,6 @@ class _StatCard extends StatelessWidget {
   final String iconAsset;
   final Color accent;
   final Color iconBg;
-  final double valueSize;
 
   @override
   Widget build(BuildContext context) {
@@ -673,7 +832,7 @@ class _StatCard extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.cairo(
-                    fontSize: valueSize,
+                    fontSize: 24,
                     fontWeight: FontWeight.w800,
                     color: accent,
                     height: 1,
@@ -1578,6 +1737,8 @@ class _PaginationBar extends StatelessWidget {
     required this.total,
     required this.page,
     required this.pageCount,
+    required this.hasMore,
+    required this.loadingMore,
     required this.onPage,
   });
 
@@ -1586,6 +1747,8 @@ class _PaginationBar extends StatelessWidget {
   final int total;
   final int page;
   final int pageCount;
+  final bool hasMore;
+  final bool loadingMore;
   final ValueChanged<int> onPage;
 
   @override
@@ -1637,6 +1800,15 @@ class _PaginationBar extends StatelessWidget {
               ),
             ),
             const Spacer(),
+            if (loadingMore)
+              const Padding(
+                padding: EdgeInsetsDirectional.only(end: 8),
+                child: SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
             IconButton(
               onPressed: page > 0 ? () => onPage(page - 1) : null,
               icon: const Icon(Icons.chevron_right, size: 20),
@@ -1671,7 +1843,9 @@ class _PaginationBar extends StatelessWidget {
               );
             }),
             IconButton(
-              onPressed: page < pageCount - 1 ? () => onPage(page + 1) : null,
+              onPressed: (page < pageCount - 1 || hasMore)
+                  ? () => onPage(page + 1)
+                  : null,
               icon: const Icon(Icons.chevron_left, size: 20),
               color: ReceptionTokens.confirmBlue,
               visualDensity: VisualDensity.compact,

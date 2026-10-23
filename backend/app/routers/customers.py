@@ -32,9 +32,15 @@ async def list_customers(
     db: Database,
     current_user: AccessDep,
     search: str | None = Query(default=None),
+    status: str | None = Query(default=None),
+    from_date: str | None = Query(default=None),
+    to_date: str | None = Query(default=None),
+    sort_dir: str = Query(default="desc", pattern="^(asc|desc)$"),
     page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=100),
+    page_size: int = Query(30, ge=1, le=100),
+    limit: int | None = Query(default=None, ge=1, le=100),
 ):
+    effective_page_size = limit or page_size
     sales_id = None
     if current_user["role"] == UserRole.SALES.value:
         sales_id = current_user["id"]
@@ -42,15 +48,19 @@ async def list_customers(
     items, total = await CustomerService(db).list_customers(
         sales_employee_id=sales_id,
         search=search,
+        status=status,
+        from_date=from_date,
+        to_date=to_date,
+        sort_dir=sort_dir,
         page=page,
-        page_size=page_size,
+        page_size=effective_page_size,
     )
     return Paginated(
         items=items,
         total=total,
         page=page,
-        page_size=page_size,
-        pages=ceil(total / page_size) if page_size else 0,
+        page_size=effective_page_size,
+        pages=ceil(total / effective_page_size) if effective_page_size else 0,
     )
 
 

@@ -40,6 +40,8 @@ dependencies:
   http: ^1.6.0
   http_parser: ^4.1.2
   shared_preferences: ^2.5.5
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
   intl: 0.20.2
   image_picker: ^1.2.3
   cached_network_image: ^3.4.1
@@ -47,6 +49,7 @@ dependencies:
   flutter_svg: ^2.3.0
   path_provider: ^2.1.5
   url_launcher: ^6.3.2
+  window_manager: ^0.5.2
 
 dev_dependencies:
   flutter_test:

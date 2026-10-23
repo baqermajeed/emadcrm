@@ -9,10 +9,12 @@ class UserService {
 
   Future<List<AppUser>> list({
     UserRole? role,
+    String? search,
     bool includeInactive = false,
   }) async {
     final query = <String, String>{};
     if (role != null) query['role'] = role.api;
+    if (search != null && search.isNotEmpty) query['search'] = search;
     if (includeInactive) query['include_inactive'] = 'true';
     final data = await _api.get('/api/users', query: query) as List<dynamic>;
     return data.map((e) => AppUser.fromJson(e as Map<String, dynamic>)).toList();

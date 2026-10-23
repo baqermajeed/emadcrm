@@ -1,4 +1,5 @@
 ﻿import 'dart:io' show Platform, Process;
+import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -15,7 +16,9 @@ import '../../controllers/customer_controller.dart';
 import '../../core/api_client.dart';
 import '../../core/reception_tokens.dart';
 import '../../models/booking.dart';
+import '../../models/report.dart';
 import '../../models/user.dart';
+import '../../services/report_service.dart';
 import '../../services/user_service.dart';
 import '../../utils/enums.dart';
 import '../../utils/formatters.dart';
@@ -45,7 +48,8 @@ class _VisitsLogScreenState extends State<VisitsLogScreen> {
   String? _callCenterId; // null = all
   DateTime? _fromDate;
   DateTime? _toDate;
-  String _appliedSearch = '';
+  LiveSummary? _summary;
+  Timer? _searchDebounce;
 
   @override
   void initState() {
@@ -57,18 +61,24 @@ class _VisitsLogScreenState extends State<VisitsLogScreen> {
     final api = context.read<ApiClient>();
     final bookings = context.read<BookingController>();
     final customers = context.read<CustomerController>();
-    if (bookings.items.isEmpty) await bookings.load();
-    if (customers.items.isEmpty) await customers.load();
+    await bookings.load(status: BookingStatus.approved);
+    if (customers.items.isEmpty) {
+      await customers.load();
+    } else {
+      customers.load();
+    }
     try {
       final users = UserService(api);
       _sales = await users.list(role: UserRole.sales);
       _callCenter = await users.list(role: UserRole.callCenter);
+      _summary = await ReportService(api).liveSummary();
     } catch (_) {}
     if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _search.dispose();
     super.dispose();
   }
@@ -90,52 +100,12 @@ class _VisitsLogScreenState extends State<VisitsLogScreen> {
     return s == BookingStatus.cancelled || s == BookingStatus.noShow;
   }
 
-  String? _salesIdForBooking(Booking b, CustomerController customers) {
-    final cid = b.customerId;
-    if (cid == null) return null;
-    for (final c in customers.items) {
-      if (c.id == cid) return c.salesEmployeeId;
-    }
-    return null;
-  }
-
   /// زيارة = حجز تم تأكيد حضوره فقط (ليس الحجوزات المعلقة).
   List<Booking> _confirmedVisits(List<Booking> bookings) =>
       bookings.where((b) => b.status == BookingStatus.approved).toList();
 
-  List<Booking> _filtered(
-    List<Booking> visits,
-    CustomerController customers,
-  ) {
-    var list = [...visits];
-    if (_appliedSearch.isNotEmpty) {
-      final q = _appliedSearch.toLowerCase();
-      list = list
-          .where(
-            (b) =>
-                b.name.toLowerCase().contains(q) || b.phone.contains(q),
-          )
-          .toList();
-    }
-    if (_callCenterId != null) {
-      list = list.where((b) => b.callCenterId == _callCenterId).toList();
-    }
-    if (_salesId != null) {
-      list = list.where((b) => _salesIdForBooking(b, customers) == _salesId).toList();
-    }
-    if (_fromDate != null) {
-      final from = DateTime(_fromDate!.year, _fromDate!.month, _fromDate!.day);
-      list = list.where((b) {
-        final d = b.visitDate.toLocal();
-        return !DateTime(d.year, d.month, d.day).isBefore(from);
-      }).toList();
-    }
-    if (_toDate != null) {
-      final to = DateTime(_toDate!.year, _toDate!.month, _toDate!.day, 23, 59, 59);
-      list = list.where((b) => !b.visitDate.toLocal().isAfter(to)).toList();
-    }
-    list.sort((a, b) => b.visitDate.compareTo(a.visitDate));
-    return list;
+  List<Booking> _filtered(List<Booking> visits) {
+    return visits;
   }
 
   Future<void> _pickDate({required bool from}) async {
@@ -163,7 +133,43 @@ class _VisitsLogScreenState extends State<VisitsLogScreen> {
       _fromDate = null;
       _toDate = null;
       _search.clear();
-      _appliedSearch = '';
+    });
+    unawaited(_loadVisitsFromFilters(queryOverride: ''));
+  }
+
+  Future<void> _loadVisitsFromFilters({String? queryOverride}) async {
+    final query = (queryOverride ?? _search.text).trim();
+    await context.read<BookingController>().load(
+          status: BookingStatus.approved,
+          search: query.isEmpty ? null : query,
+          fromDate: _fromDate,
+          toDate: _toDate == null
+              ? null
+              : DateTime(
+                  _toDate!.year,
+                  _toDate!.month,
+                  _toDate!.day,
+                  23,
+                  59,
+                  59,
+                ),
+          callCenterId: _callCenterId,
+          salesEmployeeId: _salesId,
+          sortDir: 'desc',
+        );
+  }
+
+  void _runServerSearch(String query) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 300), () async {
+      final trimmed = query.trim();
+      await _loadVisitsFromFilters(queryOverride: trimmed);
+      final api = context.read<ApiClient>();
+      try {
+        final summary = await ReportService(api).liveSummary();
+        if (!mounted) return;
+        setState(() => _summary = summary);
+      } catch (_) {}
     });
   }
 
@@ -171,16 +177,17 @@ class _VisitsLogScreenState extends State<VisitsLogScreen> {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthController>();
     final bookings = context.watch<BookingController>();
-    final customers = context.watch<CustomerController>();
     final allBookings = bookings.items;
     final visits = _confirmedVisits(allBookings);
-    final filtered = _filtered(visits, customers);
+    final filtered = _filtered(visits);
 
-    final total = visits.length;
-    final todayCount = visits.where(_isTodayVisit).length;
-    final attended = visits.length;
-    final awaitingConfirm = allBookings.where(_isUpcomingPending).length;
-    final missed = allBookings.where(_isMissedOrCancelled).length;
+    final total = _summary?.totalConfirmedVisits ?? visits.length;
+    final todayCount = _summary?.todayConfirmedVisits ?? visits.where(_isTodayVisit).length;
+    final attended = _summary?.totalConfirmedVisits ?? visits.length;
+    final awaitingConfirm =
+        _summary?.pendingBookings ?? allBookings.where(_isUpcomingPending).length;
+    final missed =
+        _summary?.missedBookings ?? allBookings.where(_isMissedOrCancelled).length;
 
     return ColoredBox(
       color: const Color(0xFFF4F7FE),
@@ -194,10 +201,8 @@ class _VisitsLogScreenState extends State<VisitsLogScreen> {
             suggestions: ReceptionSearchBar.uniqueOf([
               for (final b in visits) ...[b.name, b.phone],
             ]),
-            onSearch: () => setState(() => _appliedSearch = _search.text.trim()),
-            onQueryChanged: (q) => setState(() {
-              _appliedSearch = q.trim();
-            }),
+            onSearch: () => _runServerSearch(_search.text),
+            onQueryChanged: _runServerSearch,
             onLogout: () => context.read<AuthController>().logout(),
           ),
           Expanded(
@@ -223,10 +228,22 @@ class _VisitsLogScreenState extends State<VisitsLogScreen> {
                     fromDate: _fromDate,
                     toDate: _toDate,
                     resultCount: filtered.length,
-                    onSales: (v) => setState(() => _salesId = v),
-                    onCallCenter: (v) => setState(() => _callCenterId = v),
-                    onPickFrom: () => _pickDate(from: true),
-                    onPickTo: () => _pickDate(from: false),
+                    onSales: (v) {
+                      setState(() => _salesId = v);
+                      unawaited(_loadVisitsFromFilters());
+                    },
+                    onCallCenter: (v) {
+                      setState(() => _callCenterId = v);
+                      unawaited(_loadVisitsFromFilters());
+                    },
+                    onPickFrom: () async {
+                      await _pickDate(from: true);
+                      unawaited(_loadVisitsFromFilters());
+                    },
+                    onPickTo: () async {
+                      await _pickDate(from: false);
+                      unawaited(_loadVisitsFromFilters());
+                    },
                     onReset: _resetFilters,
                   ),
                   const SizedBox(height: 8),
@@ -234,6 +251,9 @@ class _VisitsLogScreenState extends State<VisitsLogScreen> {
                     child: _VisitsTable(
                       rows: filtered,
                       loading: bookings.loading && allBookings.isEmpty,
+                      hasMore: bookings.hasMore,
+                      loadingMore: bookings.loadingMore,
+                      onLoadMore: () => context.read<BookingController>().loadMore(),
                       onOpen: (b) {
                         final id = b.customerId;
                         if (id != null) widget.onOpenCustomer?.call(id);
@@ -805,11 +825,17 @@ class _VisitsTable extends StatelessWidget {
   const _VisitsTable({
     required this.rows,
     required this.loading,
+    required this.hasMore,
+    required this.loadingMore,
+    required this.onLoadMore,
     required this.onOpen,
   });
 
   final List<Booking> rows;
   final bool loading;
+  final bool hasMore;
+  final bool loadingMore;
+  final VoidCallback onLoadMore;
   final ValueChanged<Booking> onOpen;
 
   static const _tableMinWidth = 1380.0;
@@ -902,16 +928,38 @@ class _VisitsTable extends StatelessWidget {
                                     children: [
                                       _headerRow(),
                                       Expanded(
-                                        child: ListView.builder(
-                                          itemCount: rows.length,
-                                          itemBuilder: (context, i) {
-                                            return _dataRow(
-                                              context,
-                                              rows[i],
-                                              i + 1,
-                                              i.isOdd,
-                                            );
+                                        child: NotificationListener<ScrollNotification>(
+                                          onNotification: (notification) {
+                                            if (notification.metrics.extentAfter < 260 &&
+                                                hasMore &&
+                                                !loadingMore) {
+                                              onLoadMore();
+                                            }
+                                            return false;
                                           },
+                                          child: ListView.builder(
+                                            itemCount: rows.length + (loadingMore ? 1 : 0),
+                                            itemBuilder: (context, i) {
+                                              if (i >= rows.length) {
+                                                return const Padding(
+                                                  padding: EdgeInsets.symmetric(vertical: 12),
+                                                  child: Center(
+                                                    child: SizedBox(
+                                                      width: 18,
+                                                      height: 18,
+                                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                                    ),
+                                                  ),
+                                                );
+                                              }
+                                              return _dataRow(
+                                                context,
+                                                rows[i],
+                                                i + 1,
+                                                i.isOdd,
+                                              );
+                                            },
+                                          ),
                                         ),
                                       ),
                                     ],
@@ -1273,9 +1321,6 @@ class _VisitsTable extends StatelessWidget {
       icon: icon,
     );
   }
-
-  bool _sameDay(DateTime a, DateTime b) =>
-      a.year == b.year && a.month == b.month && a.day == b.day;
 }
 
 class _GlassActionBtn extends StatefulWidget {

@@ -1,4 +1,5 @@
 from datetime import timedelta
+from datetime import datetime
 
 from fastapi import HTTPException, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -103,21 +104,66 @@ class BookingService:
         *,
         status_filter: str | None = None,
         call_center_id: str | None = None,
+        search: str | None = None,
+        from_date: str | None = None,
+        to_date: str | None = None,
+        sales_employee_id: str | None = None,
+        sort_dir: str = "desc",
         page: int = 1,
         page_size: int = 50,
     ) -> tuple[list[dict], int]:
         query: dict = {}
         if status_filter:
-            query["status"] = status_filter
+            if status_filter == BookingStatus.NO_SHOW.value:
+                query["status"] = {
+                    "$in": [BookingStatus.NO_SHOW.value, BookingStatus.CANCELLED.value]
+                }
+            else:
+                query["status"] = status_filter
         if call_center_id:
             query["call_center_id"] = call_center_id
+        if search:
+            query["$or"] = [
+                {"name": {"$regex": search, "$options": "i"}},
+                {"phone": {"$regex": search, "$options": "i"}},
+                {"governorate": {"$regex": search, "$options": "i"}},
+            ]
+        if sales_employee_id:
+            cursor = self.customers.find(
+                {"sales_employee_id": sales_employee_id},
+                {"_id": 1},
+            )
+            customer_ids = [str(c["_id"]) for c in await cursor.to_list(10000)]
+            if not customer_ids:
+                return [], 0
+            query["customer_id"] = {"$in": customer_ids}
+
+        date_query: dict = {}
+        if from_date:
+            parsed = self._parse_iso_datetime(from_date)
+            if parsed:
+                date_query["$gte"] = parsed
+        if to_date:
+            parsed = self._parse_iso_datetime(to_date)
+            if parsed:
+                date_query["$lte"] = parsed
+        if date_query:
+            query["visit_date"] = date_query
 
         await self.expire_no_shows()
         total = await self.col.count_documents(query)
         skip = (page - 1) * page_size
-        cursor = self.col.find(query).sort("visit_date", -1).skip(skip).limit(page_size)
+        sort_value = -1 if sort_dir != "asc" else 1
+        cursor = self.col.find(query).sort("created_at", sort_value).skip(skip).limit(page_size)
         docs = serialize_docs(await cursor.to_list(page_size))
         return await self._enrich(docs), total
+
+    @staticmethod
+    def _parse_iso_datetime(raw: str) -> datetime | None:
+        try:
+            return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        except ValueError:
+            return None
 
     async def get(self, booking_id: str) -> dict:
         await self.expire_no_shows()
