@@ -62,8 +62,12 @@ class CustomerService:
             d["sales_employee_avatar_url"] = sales.get("avatar_url")
             d["call_center_name"] = call.get("full_name")
             d["call_center_avatar_url"] = call.get("avatar_url")
-            if not d.get("status") and d.get("id") in inferred_status:
-                d["status"] = inferred_status[d["id"]]
+            inferred = inferred_status.get(d.get("id") or "")
+            # Deal ownership is definitive: any customer with a deal must be exposed as buyer.
+            if inferred == CustomerStatus.BUYER.value:
+                d["status"] = CustomerStatus.BUYER.value
+            elif not d.get("status") and inferred:
+                d["status"] = inferred
             d.setdefault("documents", [])
         return docs
 
