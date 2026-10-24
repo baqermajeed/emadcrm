@@ -4,6 +4,7 @@ import { ChangeEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
   addCustomerSalesNote,
   createDeal,
+  listCustomerDeals,
   listCustomerSalesNotes,
   listCustomers,
   updateCustomer,
@@ -12,7 +13,7 @@ import {
 } from "@/lib/api";
 import { useProtectedPage } from "@/lib/auth";
 import { storage } from "@/lib/storage";
-import type { Customer, CustomerSalesNote } from "@/types";
+import type { Customer, CustomerSalesNote, Deal } from "@/types";
 import styles from "./sales.module.css";
 
 const BACKEND_ORIGIN = process.env.NEXT_PUBLIC_BACKEND_ORIGIN ?? "https://emadcrm.compassaccuracy.com";
@@ -42,6 +43,25 @@ const MONTHS_AR = [
   "نوفمبر",
   "ديسمبر"
 ];
+
+const HOUSE_TYPE_LABELS: Record<Deal["house_type"], string> = {
+  house: "دار",
+  villa: "فيلا"
+};
+
+const PAYMENT_TYPE_LABELS: Record<Deal["payment_type"], string> = {
+  cash: "كاش",
+  half_cash: "نصف كاش",
+  installments: "دفعات"
+};
+
+function formatAmount(value: number): string {
+  return new Intl.NumberFormat("ar-IQ").format(value);
+}
+
+function isBuyerStatus(value: string | null | undefined): boolean {
+  return (value ?? "").trim().toLowerCase() === "buyer";
+}
 
 function formatCardDate(value: string): { day: string; monthYear: string } {
   const date = new Date(value);
@@ -148,6 +168,9 @@ export default function SalesPage() {
   const [quickSaving, setQuickSaving] = useState(false);
   const [noteLoading, setNoteLoading] = useState(false);
   const [salesNotes, setSalesNotes] = useState<CustomerSalesNote[]>([]);
+  const [customerDeals, setCustomerDeals] = useState<Deal[]>([]);
+  const [dealLoading, setDealLoading] = useState(false);
+  const [dealMode, setDealMode] = useState<"create" | "view">("create");
   const [quickError, setQuickError] = useState("");
   const [dealForm, setDealForm] = useState({
     houseType: "house",
@@ -253,7 +276,7 @@ export default function SalesPage() {
         }
       }
 
-      if (c.status === "buyer") buyers += 1;
+      if (isBuyerStatus(c.status)) buyers += 1;
     });
 
     return { all, today, month, buyers };
@@ -392,6 +415,8 @@ export default function SalesPage() {
     setQuickStatus(customer.status ?? "potential");
     setQuickNote("");
     setSalesNotes([]);
+    setCustomerDeals([]);
+    setDealMode("create");
     if (action === "note" && token) {
       setNoteLoading(true);
       try {
@@ -403,6 +428,19 @@ export default function SalesPage() {
         setNoteLoading(false);
       }
     }
+    if (action === "deal" && token) {
+      setDealLoading(true);
+      try {
+        const deals = await listCustomerDeals(token, customer.id);
+        setCustomerDeals(deals);
+        setDealMode(deals.length ? "view" : "create");
+      } catch {
+        setCustomerDeals([]);
+        setDealMode("create");
+      } finally {
+        setDealLoading(false);
+      }
+    }
   }
 
   function closeQuickAction() {
@@ -411,6 +449,8 @@ export default function SalesPage() {
     setQuickError("");
     setQuickNote("");
     setSalesNotes([]);
+    setCustomerDeals([]);
+    setDealMode("create");
   }
 
   async function submitStatus() {
@@ -480,6 +520,10 @@ export default function SalesPage() {
         house_number: dealForm.houseNumber.trim() || null,
         notes: dealForm.notes.trim() || null
       });
+      await updateCustomer(token, activeCustomer.id, { status: "buyer" });
+      const deals = await listCustomerDeals(token, activeCustomer.id);
+      setCustomerDeals(deals);
+      setDealMode("view");
       await reloadCustomers();
       setDealForm({
         houseType: "house",
@@ -491,7 +535,6 @@ export default function SalesPage() {
         houseNumber: "",
         notes: ""
       });
-      closeQuickAction();
     } catch (err) {
       setQuickError(err instanceof Error ? err.message : "تعذر إضافة الصفقة");
     } finally {
@@ -660,7 +703,7 @@ export default function SalesPage() {
                       ملاحظة
                     </button>
                     <button type="button" onClick={() => void openQuickAction(customer, "deal")}>
-                      صفقة
+                      {isBuyerStatus(customer.status) ? "عرض الصفقة" : "إضافة صفقة"}
                     </button>
                     <button type="button" onClick={() => void openQuickAction(customer, "status")}>
                       الحالة
@@ -673,9 +716,33 @@ export default function SalesPage() {
         </section>
 
         {quickAction && activeCustomer ? (
-          <section className={styles.profileModal}>
-            <div className={styles.profileCard}>
-              <h3>
+          <section
+            className={`${styles.profileModal} ${styles.quickModal} ${
+              quickAction === "note"
+                ? styles.noteQuickModal
+                : quickAction === "deal"
+                  ? styles.dealQuickModal
+                  : ""
+            }`}
+          >
+            <div
+              className={`${styles.profileCard} ${styles.quickCard} ${
+                quickAction === "note"
+                  ? styles.noteQuickCard
+                  : quickAction === "deal"
+                    ? styles.dealQuickCard
+                    : ""
+              }`}
+            >
+              <h3
+                className={
+                  quickAction === "note"
+                    ? styles.noteQuickTitle
+                    : quickAction === "deal"
+                      ? styles.dealQuickTitleHidden
+                      : ""
+                }
+              >
                 {quickAction === "status"
                   ? "تغيير حالة الزبون"
                   : quickAction === "note"
@@ -702,12 +769,36 @@ export default function SalesPage() {
               ) : null}
 
               {quickAction === "note" ? (
-                <>
-                  <label className={styles.profileLabel}>
-                    الملاحظات السابقة
+                <div className={styles.noteQuickLayout}>
+                  <div className={styles.noteQuickTopBar}>
+                    <div>
+                      <p className={styles.noteQuickCustomerLabel}>الزبون المستهدف</p>
+                      <strong className={styles.noteQuickCustomerName}>{activeCustomer.name}</strong>
+                    </div>
+                    <span className={styles.noteQuickCountPill}>
+                      {salesNotes.length} {salesNotes.length === 1 ? "ملاحظة" : "ملاحظات"}
+                    </span>
+                  </div>
+
+                  <label className={styles.noteComposerPanel}>
+                    <span className={styles.noteComposerTitle}>ملاحظة جديدة</span>
+                    <textarea
+                      className={`${styles.profileInput} ${styles.noteComposerInput}`}
+                      value={quickNote}
+                      onChange={(e) => setQuickNote(e.target.value)}
+                      placeholder="دوّن آخر تفاعل مع الزبون، الاعتراضات، والمتابعة القادمة..."
+                      rows={5}
+                    />
+                    <span className={styles.noteComposerHint}>
+                      كل ملاحظة تحفظ تلقائيا في سجل متابعة الزبون.
+                    </span>
+                  </label>
+
+                  <div className={styles.noteTimelinePanel}>
+                    <h4>سجل الملاحظات السابقة</h4>
                     <div className={styles.noteHistoryBox}>
                       {noteLoading ? (
-                        "جارِ تحميل الملاحظات..."
+                        <p className={styles.noteHistoryState}>جارِ تحميل الملاحظات...</p>
                       ) : salesNotes.length ? (
                         salesNotes.map((note) => (
                           <div key={note.id} className={styles.noteHistoryItem}>
@@ -716,121 +807,226 @@ export default function SalesPage() {
                           </div>
                         ))
                       ) : (
-                        "لا توجد ملاحظات سابقة"
+                        <p className={styles.noteHistoryState}>لا توجد ملاحظات سابقة</p>
                       )}
                     </div>
-                  </label>
-                  <label className={styles.profileLabel}>
-                    إضافة ملاحظة جديدة
-                    <textarea
-                      className={styles.profileInput}
-                      value={quickNote}
-                      onChange={(e) => setQuickNote(e.target.value)}
-                      placeholder="اكتب ملاحظة جديدة..."
-                      rows={4}
-                    />
-                  </label>
-                </>
+                  </div>
+                </div>
               ) : null}
 
               {quickAction === "deal" ? (
-                <div className={styles.quickDealGrid}>
-                  <label className={styles.profileLabel}>
-                    نوع العقار
-                    <select
-                      className={styles.profileInput}
-                      value={dealForm.houseType}
-                      onChange={(e) => setDealForm((prev) => ({ ...prev, houseType: e.target.value }))}
-                    >
-                      <option value="house">دار</option>
-                      <option value="villa">فيلا</option>
-                    </select>
-                  </label>
-                  <label className={styles.profileLabel}>
-                    نوع الدفع
-                    <select
-                      className={styles.profileInput}
-                      value={dealForm.paymentType}
-                      onChange={(e) => setDealForm((prev) => ({ ...prev, paymentType: e.target.value }))}
-                    >
-                      <option value="cash">كاش</option>
-                      <option value="half_cash">نصف كاش</option>
-                      <option value="installments">دفعات</option>
-                    </select>
-                  </label>
-                  <label className={styles.profileLabel}>
-                    السعر الكلي
-                    <input
-                      className={styles.profileInput}
-                      value={dealForm.totalPrice}
-                      onChange={(e) => setDealForm((prev) => ({ ...prev, totalPrice: e.target.value }))}
-                      inputMode="decimal"
+                <div className={styles.dealQuickLayout}>
+                  <div className={styles.dealQuickHero}>
+                    <img
+                      src="/assets/Twilight Modern Villa Pool Retreat.png"
+                      alt="فيلا"
+                      className={styles.dealQuickHeroImage}
                     />
-                  </label>
-                  <label className={styles.profileLabel}>
-                    الدفعة الأولى
-                    <input
-                      className={styles.profileInput}
-                      value={dealForm.downPayment}
-                      onChange={(e) => setDealForm((prev) => ({ ...prev, downPayment: e.target.value }))}
-                      inputMode="decimal"
-                    />
-                  </label>
-                  <label className={styles.profileLabel}>
-                    المساحة
-                    <input
-                      className={styles.profileInput}
-                      value={dealForm.houseArea}
-                      onChange={(e) => setDealForm((prev) => ({ ...prev, houseArea: e.target.value }))}
-                      inputMode="decimal"
-                    />
-                  </label>
-                  <label className={styles.profileLabel}>
-                    البلوك
-                    <input
-                      className={styles.profileInput}
-                      value={dealForm.block}
-                      onChange={(e) => setDealForm((prev) => ({ ...prev, block: e.target.value }))}
-                    />
-                  </label>
-                  <label className={styles.profileLabel}>
-                    رقم الدار
-                    <input
-                      className={styles.profileInput}
-                      value={dealForm.houseNumber}
-                      onChange={(e) => setDealForm((prev) => ({ ...prev, houseNumber: e.target.value }))}
-                    />
-                  </label>
-                  <label className={styles.profileLabel}>
-                    ملاحظة الصفقة
-                    <textarea
-                      className={styles.profileInput}
-                      value={dealForm.notes}
-                      onChange={(e) => setDealForm((prev) => ({ ...prev, notes: e.target.value }))}
-                      rows={3}
-                    />
-                  </label>
+                    <button type="button" className={styles.dealQuickClose} onClick={closeQuickAction}>
+                      ×
+                    </button>
+                    <div className={styles.dealQuickHeroHeader}>
+                      <h2>{dealMode === "view" ? "عرض الصفقة" : "إضافة صفقة"}</h2>
+                      <p>{dealMode === "view" ? "معلومات صفقة البيع الحالية" : "إضافة صفقة جديدة للزبون"}</p>
+                    </div>
+                    <div className={styles.dealQuickTopBar}>
+                      <div className={styles.dealQuickAvatarWrap}>
+                        <img
+                          src="/assets/Faceless Corporate Real Estate Avatar.png"
+                          alt="صورة الزبون"
+                          className={styles.dealQuickAvatar}
+                        />
+                      </div>
+                      <div className={styles.dealQuickCustomerText}>
+                        <strong className={styles.dealQuickCustomerName}>{activeCustomer.name}</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  {dealLoading ? (
+                    <div className={styles.dealLoadingState}>جارِ تحميل بيانات الصفقة...</div>
+                  ) : dealMode === "view" && customerDeals.length ? (
+                    <div className={styles.dealViewLayout}>
+                      <section className={styles.dealQuickPanel}>
+                        <h4>تفاصيل الصفقة</h4>
+                        <div className={styles.dealViewGrid}>
+                          <div className={styles.dealViewItem}>
+                            <small>نوع العقار</small>
+                            <strong>{HOUSE_TYPE_LABELS[customerDeals[0].house_type]}</strong>
+                          </div>
+                          <div className={styles.dealViewItem}>
+                            <small>نوع الدفع</small>
+                            <strong>{PAYMENT_TYPE_LABELS[customerDeals[0].payment_type]}</strong>
+                          </div>
+                          <div className={styles.dealViewItem}>
+                            <small>السعر الكلي</small>
+                            <strong>{formatAmount(customerDeals[0].total_price)} د.ع</strong>
+                          </div>
+                          <div className={styles.dealViewItem}>
+                            <small>الدفعة الأولى</small>
+                            <strong>{formatAmount(customerDeals[0].down_payment)} د.ع</strong>
+                          </div>
+                          <div className={styles.dealViewItem}>
+                            <small>المساحة</small>
+                            <strong>{customerDeals[0].house_area ?? "-"}</strong>
+                          </div>
+                          <div className={styles.dealViewItem}>
+                            <small>البلوك / رقم الدار</small>
+                            <strong>
+                              {customerDeals[0].residential_block || "-"} / {customerDeals[0].house_number || "-"}
+                            </strong>
+                          </div>
+                        </div>
+                        <div className={styles.dealViewNote}>
+                          <small>ملاحظة الصفقة</small>
+                          <p>{customerDeals[0].notes?.trim() || "لا توجد ملاحظة"}</p>
+                        </div>
+                      </section>
+                    </div>
+                  ) : (
+                    <div className={styles.dealQuickGrid}>
+                      <section className={styles.dealQuickPanel}>
+                        <h4>نوع العقار والدفع</h4>
+                        <div className={styles.quickDealGrid}>
+                          <label className={styles.profileLabel}>
+                            نوع العقار
+                            <select
+                              className={styles.profileInput}
+                              value={dealForm.houseType}
+                              onChange={(e) => setDealForm((prev) => ({ ...prev, houseType: e.target.value }))}
+                            >
+                              <option value="house">دار</option>
+                              <option value="villa">فيلا</option>
+                            </select>
+                          </label>
+                          <label className={styles.profileLabel}>
+                            نوع الدفع
+                            <select
+                              className={styles.profileInput}
+                              value={dealForm.paymentType}
+                              onChange={(e) => setDealForm((prev) => ({ ...prev, paymentType: e.target.value }))}
+                            >
+                              <option value="cash">كاش</option>
+                              <option value="half_cash">نصف كاش</option>
+                              <option value="installments">دفعات</option>
+                            </select>
+                          </label>
+                        </div>
+                      </section>
+
+                      <section className={styles.dealQuickPanel}>
+                        <h4>التفاصيل المالية</h4>
+                        <div className={styles.quickDealGrid}>
+                          <label className={styles.profileLabel}>
+                            السعر الكلي
+                            <input
+                              className={styles.profileInput}
+                              value={dealForm.totalPrice}
+                              onChange={(e) => setDealForm((prev) => ({ ...prev, totalPrice: e.target.value }))}
+                              inputMode="decimal"
+                            />
+                          </label>
+                          <label className={styles.profileLabel}>
+                            الدفعة الأولى
+                            <input
+                              className={styles.profileInput}
+                              value={dealForm.downPayment}
+                              onChange={(e) => setDealForm((prev) => ({ ...prev, downPayment: e.target.value }))}
+                              inputMode="decimal"
+                            />
+                          </label>
+                        </div>
+                      </section>
+
+                      <section className={styles.dealQuickPanel}>
+                        <h4>موقع العقار</h4>
+                        <div className={styles.quickDealGrid}>
+                          <label className={styles.profileLabel}>
+                            المساحة
+                            <input
+                              className={styles.profileInput}
+                              value={dealForm.houseArea}
+                              onChange={(e) => setDealForm((prev) => ({ ...prev, houseArea: e.target.value }))}
+                              inputMode="decimal"
+                            />
+                          </label>
+                          <label className={styles.profileLabel}>
+                            البلوك
+                            <input
+                              className={styles.profileInput}
+                              value={dealForm.block}
+                              onChange={(e) => setDealForm((prev) => ({ ...prev, block: e.target.value }))}
+                            />
+                          </label>
+                          <label className={styles.profileLabel}>
+                            رقم الدار
+                            <input
+                              className={styles.profileInput}
+                              value={dealForm.houseNumber}
+                              onChange={(e) => setDealForm((prev) => ({ ...prev, houseNumber: e.target.value }))}
+                            />
+                          </label>
+                        </div>
+                      </section>
+
+                      <section className={`${styles.dealQuickPanel} ${styles.dealQuickNotesPanel}`}>
+                        <h4>ملاحظة الصفقة</h4>
+                        <label className={styles.profileLabel}>
+                          تفاصيل إضافية
+                          <textarea
+                            className={`${styles.profileInput} ${styles.dealQuickTextarea}`}
+                            value={dealForm.notes}
+                            onChange={(e) => setDealForm((prev) => ({ ...prev, notes: e.target.value }))}
+                            rows={4}
+                            placeholder="اكتب تفاصيل مهمة عن التفاوض، التوقيت، أو شروط العميل..."
+                          />
+                        </label>
+                      </section>
+                    </div>
+                  )}
+
                 </div>
               ) : null}
 
               {quickError ? <p className={styles.profileError}>{quickError}</p> : null}
 
-              <div className={styles.profileActions}>
+              <div
+                className={`${styles.profileActions} ${
+                  quickAction === "note"
+                    ? styles.noteQuickActions
+                    : quickAction === "deal"
+                      ? styles.dealQuickActions
+                      : ""
+                }`}
+              >
                 <button type="button" onClick={closeQuickAction}>
                   إلغاء
                 </button>
                 <button
                   type="button"
-                  disabled={quickSaving}
+                  disabled={
+                    quickSaving ||
+                    (quickAction === "note" && !quickNote.trim())
+                  }
                   onClick={
                     quickAction === "status"
                       ? submitStatus
                       : quickAction === "note"
                         ? submitNote
-                        : submitDeal
+                        : dealMode === "view"
+                          ? () => setDealMode("create")
+                          : submitDeal
                   }
                 >
-                  {quickSaving ? "جارِ الحفظ..." : "حفظ"}
+                  {quickAction === "deal"
+                    ? dealMode === "view"
+                      ? "إضافة صفقة أخرى"
+                      : quickSaving
+                        ? "جارِ الحفظ..."
+                        : "حفظ الصفقة"
+                    : quickSaving
+                      ? "جارِ الحفظ..."
+                      : "حفظ"}
                 </button>
               </div>
             </div>

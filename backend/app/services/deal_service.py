@@ -6,7 +6,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from app.models.collections import Collections
 from app.schemas.deal import DealCreate, DealUpdate
 from app.services.user_service import UserService
-from app.utils.enums import DealStatus, HouseType, PaymentType
+from app.utils.enums import CustomerStatus, DealStatus, HouseType, PaymentType
 from app.utils.helpers import oid, serialize_doc, serialize_docs, utcnow
 
 
@@ -60,6 +60,10 @@ class DealService:
         payload["created_at"] = now
 
         result = await self.col.insert_one(payload)
+        await self.customers.update_one(
+            {"_id": oid(data.customer_id, "customer")},
+            {"$set": {"status": CustomerStatus.BUYER.value, "updated_at": now}},
+        )
         payload["_id"] = result.inserted_id
         out = serialize_doc(payload)
         return (await self._enrich([out]))[0]

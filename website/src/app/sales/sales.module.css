@@ -522,7 +522,8 @@
 .cropperModal {
   position: fixed;
   inset: 0;
-  background: rgba(5, 18, 38, 0.66);
+  background: rgba(5, 18, 38, 0.62);
+  backdrop-filter: blur(5px);
   z-index: 20;
   display: grid;
   place-items: center;
@@ -543,6 +544,423 @@
   margin: 0 0 12px;
   color: #143055;
   font-size: 1.08rem;
+}
+
+.quickModal {
+  align-items: end;
+}
+
+.quickCard {
+  width: min(100%, 640px);
+  border-radius: 22px 22px 18px 18px;
+  border: 1px solid #dbe7fb;
+  box-shadow:
+    0 28px 56px rgba(9, 33, 68, 0.3),
+    0 2px 0 rgba(255, 255, 255, 0.7) inset;
+  padding: 16px 14px 14px;
+}
+
+.quickCard h3 {
+  font-size: 1.45rem;
+  margin-bottom: 10px;
+  letter-spacing: -0.2px;
+}
+
+.noteQuickModal {
+  padding: 24px;
+}
+
+.dealQuickModal {
+  align-items: center;
+  padding: 10px;
+}
+
+.noteQuickCard {
+  width: min(100%, 920px);
+  border: 0;
+  border-radius: 30px;
+  padding: 20px;
+  background:
+    radial-gradient(130% 90% at 100% -20%, rgba(32, 110, 228, 0.26) 0%, rgba(32, 110, 228, 0) 62%),
+    radial-gradient(100% 70% at 0% 110%, rgba(7, 186, 173, 0.18) 0%, rgba(7, 186, 173, 0) 58%),
+    #f8fbff;
+  box-shadow:
+    0 40px 95px rgba(7, 33, 75, 0.36),
+    0 2px 0 rgba(255, 255, 255, 0.95) inset;
+}
+
+.noteQuickTitle {
+  margin: 0 0 14px;
+  font-size: 1.65rem;
+  color: #0f3564;
+}
+
+.noteQuickLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  gap: 14px;
+}
+
+.noteQuickTopBar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid #d8e8ff;
+  border-radius: 18px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(235, 245, 255, 0.9));
+  padding: 12px 14px;
+}
+
+.noteQuickCustomerLabel {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #6180a8;
+}
+
+.noteQuickCustomerName {
+  display: block;
+  margin-top: 3px;
+  font-size: 1.05rem;
+  color: #133e71;
+}
+
+.noteQuickCountPill {
+  border-radius: 999px;
+  border: 1px solid #b8d6ff;
+  background: #eef5ff;
+  color: #275488;
+  padding: 6px 12px;
+  font-size: 0.83rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.noteComposerPanel {
+  display: block;
+  border: 1px solid #d6e5fb;
+  border-radius: 20px;
+  background: #ffffff;
+  padding: 14px;
+}
+
+.noteComposerTitle {
+  display: block;
+  color: #1b487a;
+  font-size: 0.95rem;
+  font-weight: 800;
+  margin-bottom: 7px;
+}
+
+.noteComposerInput {
+  margin-top: 0;
+  border-radius: 16px;
+  min-height: 148px;
+  resize: vertical;
+  background: #f8fbff;
+  border-color: #c5daf9;
+}
+
+.noteComposerHint {
+  display: block;
+  margin-top: 8px;
+  font-size: 0.82rem;
+  color: #5a7697;
+}
+
+.noteTimelinePanel {
+  border: 1px solid #d7e6fd;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 14px;
+}
+
+.noteTimelinePanel h4 {
+  margin: 0 0 8px;
+  color: #1b487a;
+  font-size: 0.95rem;
+}
+
+.dealQuickLayout {
+  display: grid;
+  gap: 10px;
+}
+
+.dealQuickCard {
+  width: min(100%, 720px);
+  border-radius: 24px;
+  padding: 10px;
+  background: #f3f8ff;
+  border: 1px solid #d8e8ff;
+  box-shadow: 0 30px 60px rgba(8, 34, 72, 0.45);
+}
+
+.dealQuickTitleHidden {
+  display: none;
+}
+
+.dealQuickHero {
+  position: relative;
+  height: 230px;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 12px 28px rgba(8, 37, 78, 0.35);
+}
+
+.dealQuickHero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(5, 24, 54, 0.08) 0%, rgba(8, 29, 61, 0.58) 100%);
+}
+
+.dealQuickHeroImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.dealQuickHeroHeader {
+  position: absolute;
+  top: 20px;
+  right: 22px;
+  z-index: 1;
+  text-align: right;
+  color: #fff;
+}
+
+.dealQuickHeroHeader h2 {
+  margin: 0;
+  font-size: 2.15rem;
+  line-height: 1.05;
+}
+
+.dealQuickHeroHeader p {
+  margin: 6px 0 0;
+  font-size: 1rem;
+  color: rgba(235, 244, 255, 0.94);
+}
+
+.dealQuickClose {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 1;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  font-size: 2rem;
+  line-height: 1;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+}
+
+.dealQuickTopBar {
+  position: absolute;
+  right: 14px;
+  bottom: 12px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  border: 1px solid #d8e6fb;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(235, 245, 255, 0.9));
+  padding: 6px 10px;
+  width: fit-content;
+  max-width: calc(100% - 28px);
+  box-shadow: 0 10px 24px rgba(10, 45, 92, 0.26);
+}
+
+.dealQuickCustomerText {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.dealQuickCustomerName {
+  display: block;
+  margin-top: 0;
+  color: #173f72;
+  font-size: 0.98rem;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dealQuickAvatarWrap {
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  border: 2px solid #ffffff;
+  overflow: hidden;
+  background: #dbe8f9;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(20, 69, 130, 0.2);
+}
+
+.dealQuickAvatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.dealQuickGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.dealQuickPanel {
+  border: 1px solid #dae8fb;
+  border-radius: 18px;
+  background: #fff;
+  padding: 12px;
+}
+
+.dealQuickPanel h4 {
+  margin: 0 0 3px;
+  color: #133e71;
+  font-size: 1.18rem;
+  font-weight: 800;
+}
+
+.dealQuickPanel .profileLabel {
+  margin-top: 5px;
+  font-size: 0.94rem;
+  color: #294d78;
+}
+
+.dealQuickPanel .profileInput {
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  border-color: #d7e4f6;
+}
+
+.dealQuickNotesPanel {
+  grid-column: auto;
+}
+
+.dealQuickTextarea {
+  min-height: 110px;
+  resize: vertical;
+}
+
+.dealLoadingState {
+  border: 1px solid #d7e6fd;
+  border-radius: 14px;
+  background: #fff;
+  color: #35587f;
+  padding: 14px;
+  font-size: 0.94rem;
+}
+
+.dealViewLayout {
+  display: grid;
+  gap: 10px;
+}
+
+.dealViewGrid {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.dealViewItem {
+  border: 1px solid #d8e7fb;
+  border-radius: 12px;
+  background: #f8fbff;
+  padding: 8px 9px;
+}
+
+.dealViewItem small {
+  display: block;
+  font-size: 0.74rem;
+  color: #6c86a8;
+  margin-bottom: 2px;
+}
+
+.dealViewItem strong {
+  color: #1b4779;
+  font-size: 0.9rem;
+  word-break: break-word;
+}
+
+.dealViewNote {
+  margin-top: 8px;
+  border: 1px dashed #c8dcf7;
+  border-radius: 12px;
+  background: #fafdff;
+  padding: 9px;
+}
+
+.dealViewNote small {
+  display: block;
+  color: #5f7ea3;
+  font-size: 0.75rem;
+}
+
+.dealViewNote p {
+  margin: 4px 0 0;
+  color: #234a79;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.dealExtraPanel {
+  border: 1px solid #d7e6fd;
+  border-radius: 16px;
+  background: #fff;
+  padding: 10px;
+}
+
+.dealExtraHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #1a4373;
+}
+
+.dealExtraHeader h4 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.dealExtraHeader span {
+  font-size: 1.5rem;
+}
+
+.dealUploadBox {
+  margin-top: 8px;
+  border: 2px dashed #bfd7f7;
+  border-radius: 12px;
+  background: #f8fbff;
+  text-align: center;
+  padding: 14px 10px;
+  color: #35587f;
+}
+
+.dealUploadBox strong {
+  display: block;
+  font-size: 0.96rem;
+  color: #1f4b7b;
+}
+
+.dealUploadBox p {
+  margin: 6px 0 2px;
+  font-size: 0.95rem;
+}
+
+.dealUploadBox small {
+  font-size: 0.82rem;
+  color: #6887ab;
 }
 
 .profileAvatarEditor {
@@ -590,33 +1008,47 @@
 .profileLabel {
   display: block;
   color: #355374;
-  font-size: 0.86rem;
-  margin-top: 8px;
+  font-size: 0.93rem;
+  font-weight: 700;
+  margin-top: 10px;
 }
 
 .quickDealGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: 9px;
 }
 
 .noteHistoryBox {
   margin-top: 4px;
-  border: 1px solid #d6e2f4;
-  border-radius: 10px;
+  border: 1px solid #d5e5fb;
+  border-radius: 16px;
   padding: 10px 12px;
-  min-height: 88px;
-  max-height: 180px;
+  min-height: 168px;
+  max-height: 280px;
   overflow: auto;
-  background: #f7faff;
+  background: linear-gradient(180deg, #fafdff 0%, #f1f7ff 100%);
   color: #2a486d;
   font-size: 0.9rem;
   white-space: pre-wrap;
 }
 
 .noteHistoryItem {
-  padding: 8px 0;
-  border-bottom: 1px dashed #d7e3f5;
+  position: relative;
+  padding: 10px 16px 10px 0;
+  border-bottom: 1px dashed #cadaf5;
+}
+
+.noteHistoryItem::before {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 14px;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #2d79dd;
+  box-shadow: 0 0 0 4px rgba(45, 121, 221, 0.16);
 }
 
 .noteHistoryItem:last-child {
@@ -624,28 +1056,39 @@
 }
 
 .noteHistoryItem strong {
-  color: #1a3f69;
+  color: #1e4673;
   font-size: 0.78rem;
+  font-weight: 800;
 }
 
 .noteHistoryItem p {
-  margin: 4px 0 0;
-  color: #2f4e73;
+  margin: 5px 0 0;
+  color: #35587f;
+  line-height: 1.55;
+}
+
+.noteHistoryState {
+  margin: 0;
+  color: #5a7697;
+  font-size: 0.88rem;
 }
 
 .profileInput {
   width: 100%;
   margin-top: 4px;
-  border: 1px solid #d6e2f4;
-  border-radius: 10px;
-  padding: 10px 12px;
-  font-size: 0.95rem;
+  border: 1px solid #cfe0f9;
+  border-radius: 14px;
+  padding: 11px 13px;
+  font-size: 0.97rem;
   color: #16395e;
   outline: none;
+  background: #fff;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .profileInput:focus {
-  border-color: #8db4ee;
+  border-color: #6ea5f0;
+  box-shadow: 0 0 0 3px rgba(82, 143, 231, 0.16);
 }
 
 .profileError {
@@ -656,7 +1099,7 @@
 
 .profileActions,
 .cropperActions {
-  margin-top: 12px;
+  margin-top: 14px;
   display: flex;
   justify-content: flex-end;
   gap: 8px;
@@ -665,21 +1108,180 @@
 .profileActions button,
 .cropperActions button {
   border: 0;
-  border-radius: 10px;
-  padding: 9px 12px;
-  font-size: 0.88rem;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 0.9rem;
+  font-weight: 700;
 }
 
 .profileActions button:first-child,
 .cropperActions button:first-child {
-  background: #ecf1fa;
-  color: #2e4969;
+  background: #edf3ff;
+  color: #365277;
 }
 
 .profileActions button:last-child,
 .cropperActions button:last-child {
-  background: #1b63d5;
+  background: linear-gradient(145deg, #2b79e9, #1a5ecf);
   color: #fff;
+  box-shadow: 0 8px 18px rgba(29, 96, 201, 0.33);
+}
+
+.noteQuickActions {
+  margin-top: 12px;
+}
+
+.noteQuickActions button {
+  min-width: 112px;
+  border-radius: 14px;
+}
+
+.noteQuickActions button:last-child {
+  background: linear-gradient(140deg, #2070db, #0d5ac5);
+}
+
+.noteQuickActions button:last-child:disabled {
+  opacity: 0.62;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.dealQuickActions {
+  margin-top: 2px;
+  display: grid;
+  grid-template-columns: 1fr 1.5fr;
+  gap: 10px;
+  width: 100%;
+}
+
+.dealQuickActions button {
+  min-width: 0;
+  border-radius: 14px;
+  font-size: 0.98rem;
+  padding: 12px 14px;
+}
+
+.dealQuickActions button:last-child {
+  background: linear-gradient(140deg, #1f6de2, #0e56c1);
+  box-shadow: 0 9px 18px rgba(12, 97, 194, 0.31);
+}
+
+.dealQuickActions button:first-child {
+  background: #eaf0f9;
+  color: #23456f;
+}
+
+@media (max-width: 820px) {
+  .noteQuickCard {
+    border-radius: 24px;
+    padding: 15px;
+  }
+
+  .noteQuickLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .noteQuickTopBar {
+    gap: 10px;
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .noteQuickCountPill {
+    align-self: flex-end;
+  }
+
+  .dealQuickModal {
+    padding: 8px;
+  }
+
+  .dealQuickCard {
+    width: min(100%, 720px);
+    padding: 8px;
+    border-radius: 18px;
+  }
+
+  .dealQuickHero {
+    height: 184px;
+  }
+
+  .dealQuickHeroHeader {
+    right: 14px;
+    top: 14px;
+  }
+
+  .dealQuickHeroHeader h2 {
+    font-size: 1.55rem;
+  }
+
+  .dealQuickHeroHeader p {
+    font-size: 0.78rem;
+  }
+
+  .dealQuickTopBar {
+    right: 10px;
+    bottom: 10px;
+    width: fit-content;
+    max-width: calc(100% - 20px);
+    padding: 6px 9px;
+  }
+
+  .dealQuickCustomerName {
+    font-size: 0.88rem;
+  }
+
+  .dealQuickGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .dealViewGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .dealQuickPanel {
+    padding: 9px;
+    border-radius: 14px;
+  }
+
+  .dealQuickPanel h4 {
+    font-size: 1rem;
+  }
+
+  .dealQuickPanel .profileLabel {
+    font-size: 0.92rem;
+  }
+
+  .dealQuickPanel .profileInput {
+    font-size: 0.92rem;
+    padding: 8px 10px;
+  }
+
+  .dealQuickTextarea {
+    min-height: 68px;
+  }
+
+  .dealExtraHeader h4 {
+    font-size: 1.05rem;
+  }
+
+  .dealUploadBox strong {
+    font-size: 0.95rem;
+  }
+
+  .dealUploadBox p {
+    font-size: 0.78rem;
+  }
+
+  .dealQuickActions {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .dealQuickActions button {
+    font-size: 0.95rem;
+    padding: 10px 12px;
+  }
 }
 
 .cropperSquare {
