@@ -76,11 +76,11 @@
 }
 
 .salesLogo {
-  width: 48px;
-  height: 48px;
+  width: 56px;
+  height: 56px;
   object-fit: contain;
   filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.35));
-  margin-bottom: 2px;
+  margin-bottom: 3px;
 }
 
 .salesBrand strong {
@@ -167,6 +167,7 @@
 .salesHeroTitle {
   margin-top: 16px;
   text-align: right;
+  transform: translateY(10px);
 }
 
 .salesHeroTitle h1 {
@@ -573,6 +574,10 @@
 .dealQuickModal {
   align-items: center;
   padding: 10px;
+}
+
+.statusQuickModal {
+  align-items: center;
 }
 
 .noteQuickCard {

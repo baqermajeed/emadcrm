@@ -19,6 +19,7 @@ import styles from "./sales.module.css";
 const BACKEND_ORIGIN = process.env.NEXT_PUBLIC_BACKEND_ORIGIN ?? "https://emadcrm.compassaccuracy.com";
 const CROP_SIZE = 280;
 const AVATAR_EXPORT_SIZE = 512;
+const DEFAULT_EMPLOYEE_AVATAR = "/assets/Faceless Corporate Real Estate Avatar.png";
 
 const STATUS_LABELS: Record<string, string> = {
   buyer: "تم الشراء",
@@ -184,7 +185,7 @@ export default function SalesPage() {
   });
 
   const rawAvatarSrc = avatarPreview ?? resolveAvatarUrl(profileUser?.avatar_url);
-  const avatarSrc = avatarLoadFailed ? null : rawAvatarSrc;
+  const avatarSrc = (avatarLoadFailed ? DEFAULT_EMPLOYEE_AVATAR : rawAvatarSrc) ?? DEFAULT_EMPLOYEE_AVATAR;
 
   useEffect(() => {
     setProfileUser(user);
@@ -722,6 +723,8 @@ export default function SalesPage() {
                 ? styles.noteQuickModal
                 : quickAction === "deal"
                   ? styles.dealQuickModal
+                  : quickAction === "status"
+                    ? styles.statusQuickModal
                   : ""
             }`}
           >
