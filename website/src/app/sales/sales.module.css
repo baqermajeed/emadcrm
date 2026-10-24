@@ -614,6 +614,25 @@
   white-space: pre-wrap;
 }
 
+.noteHistoryItem {
+  padding: 8px 0;
+  border-bottom: 1px dashed #d7e3f5;
+}
+
+.noteHistoryItem:last-child {
+  border-bottom: 0;
+}
+
+.noteHistoryItem strong {
+  color: #1a3f69;
+  font-size: 0.78rem;
+}
+
+.noteHistoryItem p {
+  margin: 4px 0 0;
+  color: #2f4e73;
+}
+
 .profileInput {
   width: 100%;
   margin-top: 4px;

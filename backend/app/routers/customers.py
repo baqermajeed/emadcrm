@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Upload
 from app.dependencies import CurrentUser, Database, require_roles
 from app.schemas.common import Paginated
 from app.schemas.customer import CustomerCreate, CustomerOut, CustomerUpdate, DocumentOut
+from app.schemas.customer_note import CustomerSalesNoteCreate, CustomerSalesNoteOut
 from app.services.customer_service import CustomerService
 from app.utils.enums import UserRole
 
@@ -25,6 +26,10 @@ AccessDep = Annotated[
 EditDep = Annotated[
     dict,
     Depends(require_roles(UserRole.RECEPTION, UserRole.MANAGER, UserRole.SALES)),
+]
+SalesOnlyDep = Annotated[
+    dict,
+    Depends(require_roles(UserRole.SALES)),
 ]
 
 
@@ -130,3 +135,22 @@ async def delete_document(
     _: EditDep,
 ):
     return await CustomerService(db).delete_document(customer_id, document_id)
+
+
+@router.get("/{customer_id}/sales-notes", response_model=list[CustomerSalesNoteOut])
+async def list_sales_notes(customer_id: str, db: Database, current_user: SalesOnlyDep):
+    return await CustomerService(db).list_sales_notes(customer_id, current_user["id"])
+
+
+@router.post(
+    "/{customer_id}/sales-notes",
+    response_model=CustomerSalesNoteOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_sales_note(
+    customer_id: str,
+    body: CustomerSalesNoteCreate,
+    db: Database,
+    current_user: SalesOnlyDep,
+):
+    return await CustomerService(db).add_sales_note(customer_id, current_user["id"], body.note)

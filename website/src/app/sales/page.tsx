@@ -2,8 +2,9 @@
 
 import { ChangeEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
+  addCustomerSalesNote,
   createDeal,
-  getCustomer,
+  listCustomerSalesNotes,
   listCustomers,
   updateCustomer,
   updateUserProfile,
@@ -11,7 +12,7 @@ import {
 } from "@/lib/api";
 import { useProtectedPage } from "@/lib/auth";
 import { storage } from "@/lib/storage";
-import type { Customer } from "@/types";
+import type { Customer, CustomerSalesNote } from "@/types";
 import styles from "./sales.module.css";
 
 const BACKEND_ORIGIN = process.env.NEXT_PUBLIC_BACKEND_ORIGIN ?? "https://emadcrm.compassaccuracy.com";
@@ -146,6 +147,7 @@ export default function SalesPage() {
   const [quickNote, setQuickNote] = useState("");
   const [quickSaving, setQuickSaving] = useState(false);
   const [noteLoading, setNoteLoading] = useState(false);
+  const [salesNotes, setSalesNotes] = useState<CustomerSalesNote[]>([]);
   const [quickError, setQuickError] = useState("");
   const [dealForm, setDealForm] = useState({
     houseType: "house",
@@ -389,13 +391,14 @@ export default function SalesPage() {
     setQuickError("");
     setQuickStatus(customer.status ?? "potential");
     setQuickNote("");
+    setSalesNotes([]);
     if (action === "note" && token) {
       setNoteLoading(true);
       try {
-        const freshCustomer = await getCustomer(token, customer.id);
-        setActiveCustomer(freshCustomer);
+        const notes = await listCustomerSalesNotes(token, customer.id);
+        setSalesNotes(notes);
       } catch {
-        // Keep current card data if fresh fetch fails
+        setSalesNotes([]);
       } finally {
         setNoteLoading(false);
       }
@@ -407,6 +410,7 @@ export default function SalesPage() {
     setActiveCustomer(null);
     setQuickError("");
     setQuickNote("");
+    setSalesNotes([]);
   }
 
   async function submitStatus() {
@@ -429,11 +433,10 @@ export default function SalesPage() {
     setQuickSaving(true);
     setQuickError("");
     try {
-      const stamped = `[${new Date().toLocaleString("ar-IQ")}] ${quickNote.trim()}`;
-      const merged = activeCustomer.notes ? `${activeCustomer.notes}\n${stamped}` : stamped;
-      await updateCustomer(token, activeCustomer.id, { notes: merged });
+      const created = await addCustomerSalesNote(token, activeCustomer.id, quickNote.trim());
+      setSalesNotes((prev) => [created, ...prev]);
+      setQuickNote("");
       await reloadCustomers();
-      closeQuickAction();
     } catch (err) {
       setQuickError(err instanceof Error ? err.message : "تعذر إضافة الملاحظة");
     } finally {
@@ -703,9 +706,18 @@ export default function SalesPage() {
                   <label className={styles.profileLabel}>
                     الملاحظات السابقة
                     <div className={styles.noteHistoryBox}>
-                      {noteLoading
-                        ? "جارِ تحميل الملاحظات..."
-                        : activeCustomer.notes?.trim() || "لا توجد ملاحظات سابقة"}
+                      {noteLoading ? (
+                        "جارِ تحميل الملاحظات..."
+                      ) : salesNotes.length ? (
+                        salesNotes.map((note) => (
+                          <div key={note.id} className={styles.noteHistoryItem}>
+                            <strong>{new Date(note.created_at).toLocaleString("ar-IQ")}</strong>
+                            <p>{note.note}</p>
+                          </div>
+                        ))
+                      ) : (
+                        "لا توجد ملاحظات سابقة"
+                      )}
                     </div>
                   </label>
                   <label className={styles.profileLabel}>

@@ -1,4 +1,12 @@
-import type { Customer, Deal, LoginResponse, PaginatedResponse, User, Visit } from "@/types";
+import type {
+  Customer,
+  CustomerSalesNote,
+  Deal,
+  LoginResponse,
+  PaginatedResponse,
+  User,
+  Visit
+} from "@/types";
 
 const baseURL = "/api/backend";
 
@@ -172,6 +180,31 @@ export async function listCustomerDeals(token: string, customerId: string): Prom
     }
   });
   return data.items;
+}
+
+export async function listCustomerSalesNotes(
+  token: string,
+  customerId: string
+): Promise<CustomerSalesNote[]> {
+  return request<CustomerSalesNote[]>(`customers/${customerId}/sales-notes`, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+}
+
+export async function addCustomerSalesNote(
+  token: string,
+  customerId: string,
+  note: string
+): Promise<CustomerSalesNote> {
+  return request<CustomerSalesNote>(`customers/${customerId}/sales-notes`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({ note })
+  });
 }
 
 export interface UpdateUserPayload {

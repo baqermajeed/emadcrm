@@ -42,6 +42,7 @@ class CustomerService:
     def __init__(self, db: AsyncIOMotorDatabase):
         self.db = db
         self.col = db[Collections.CUSTOMERS]
+        self.sales_notes = db[Collections.CUSTOMER_SALES_NOTES]
         self.users = UserService(db)
 
     async def _enrich(self, docs: list[dict]) -> list[dict]:
@@ -357,3 +358,45 @@ class CustomerService:
             {"$pull": {"documents": {"id": document_id}}, "$set": {"updated_at": utcnow()}},
         )
         return await self.get(customer_id)
+
+    async def list_sales_notes(self, customer_id: str, sales_user_id: str) -> list[dict]:
+        customer = await self.get(customer_id)
+        if str(customer.get("sales_employee_id") or "") != sales_user_id:
+            raise HTTPException(status_code=403, detail="Not your customer")
+
+        cursor = self.sales_notes.find(
+            {"customer_id": customer_id, "sales_employee_id": sales_user_id}
+        ).sort("created_at", -1)
+        docs = serialize_docs(await cursor.to_list(1000))
+        profile_map = await self.users.profile_map([sales_user_id])
+        profile = profile_map.get(sales_user_id, {})
+        for doc in docs:
+            doc["sales_employee_name"] = profile.get("full_name")
+            doc["sales_employee_avatar_url"] = profile.get("avatar_url")
+        return docs
+
+    async def add_sales_note(self, customer_id: str, sales_user_id: str, note: str) -> dict:
+        customer = await self.get(customer_id)
+        if str(customer.get("sales_employee_id") or "") != sales_user_id:
+            raise HTTPException(status_code=403, detail="Not your customer")
+
+        clean_note = note.strip()
+        if not clean_note:
+            raise HTTPException(status_code=400, detail="Note cannot be empty")
+        if len(clean_note) > 1000:
+            clean_note = clean_note[:1000]
+
+        payload = {
+            "customer_id": customer_id,
+            "sales_employee_id": sales_user_id,
+            "note": clean_note,
+            "created_at": utcnow(),
+        }
+        result = await self.sales_notes.insert_one(payload)
+        payload["_id"] = result.inserted_id
+        out = serialize_doc(payload)
+        profile_map = await self.users.profile_map([sales_user_id])
+        profile = profile_map.get(sales_user_id, {})
+        out["sales_employee_name"] = profile.get("full_name")
+        out["sales_employee_avatar_url"] = profile.get("avatar_url")
+        return out

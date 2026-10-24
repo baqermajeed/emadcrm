@@ -96,3 +96,13 @@ export interface Deal {
   sale_date: string;
   created_at: string;
 }
+
+export interface CustomerSalesNote {
+  id: string;
+  customer_id: string;
+  sales_employee_id: string;
+  note: string;
+  created_at: string;
+  sales_employee_name: string | null;
+  sales_employee_avatar_url: string | null;
+}
