@@ -26,7 +26,12 @@ async function proxy(request: NextRequest, pathParts: string[]): Promise<NextRes
   };
 
   if (request.method !== "GET" && request.method !== "HEAD") {
-    init.body = await request.text();
+    const contentTypeValue = contentType?.toLowerCase() ?? "";
+    if (contentTypeValue.startsWith("multipart/form-data")) {
+      init.body = await request.arrayBuffer();
+    } else {
+      init.body = await request.text();
+    }
   }
 
   try {

@@ -1,7 +1,7 @@
 from math import ceil
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 
 from app.dependencies import CurrentUser, Database, require_roles
 from app.schemas.common import Paginated
@@ -24,7 +24,7 @@ AccessDep = Annotated[
 ]
 EditDep = Annotated[
     dict,
-    Depends(require_roles(UserRole.RECEPTION, UserRole.MANAGER)),
+    Depends(require_roles(UserRole.RECEPTION, UserRole.MANAGER, UserRole.SALES)),
 ]
 
 
@@ -92,8 +92,12 @@ async def update_customer(
     customer_id: str,
     body: CustomerUpdate,
     db: Database,
-    _: EditDep,
+    current_user: EditDep,
 ):
+    if current_user["role"] == UserRole.SALES.value:
+        customer = await CustomerService(db).get(customer_id)
+        if customer.get("sales_employee_id") != current_user["id"]:
+            raise HTTPException(status_code=403, detail="Not your customer")
     return await CustomerService(db).update(customer_id, body)
 
 
@@ -109,6 +113,10 @@ async def upload_document(
     file: UploadFile = File(...),
     notes: str | None = Form(default=None),
 ):
+    if current_user["role"] == UserRole.SALES.value:
+        customer = await CustomerService(db).get(customer_id)
+        if customer.get("sales_employee_id") != current_user["id"]:
+            raise HTTPException(status_code=403, detail="Not your customer")
     return await CustomerService(db).upload_document(
         customer_id, file, current_user["id"], notes=notes
     )

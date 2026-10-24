@@ -1,6 +1,7 @@
 "use client";
 
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { listCustomers, updateUserProfile, uploadUserAvatar } from "@/lib/api";
 import { useProtectedPage } from "@/lib/auth";
 import { storage } from "@/lib/storage";
@@ -9,6 +10,7 @@ import styles from "./sales.module.css";
 
 const BACKEND_ORIGIN = process.env.NEXT_PUBLIC_BACKEND_ORIGIN ?? "https://emadcrm.compassaccuracy.com";
 const CROP_SIZE = 280;
+const AVATAR_EXPORT_SIZE = 512;
 
 const STATUS_LABELS: Record<string, string> = {
   buyer: "تم الشراء",
@@ -45,10 +47,15 @@ function formatCardDate(value: string): { day: string; monthYear: string } {
 
 function resolveAvatarUrl(value: string | null | undefined): string | null {
   if (!value) return null;
-  if (/^https?:\/\//i.test(value)) return value;
-  if (value.startsWith("//")) return `https:${value}`;
-  if (value.startsWith("/")) return `${BACKEND_ORIGIN}${value}`;
-  return `${BACKEND_ORIGIN}/${value}`;
+  const normalized = value.trim();
+  if (!normalized) return null;
+  const lowered = normalized.toLowerCase();
+  if (lowered === "null" || lowered === "undefined" || lowered === "none") return null;
+  if (/^data:image\//i.test(normalized)) return normalized;
+  if (/^https?:\/\//i.test(normalized)) return normalized;
+  if (normalized.startsWith("//")) return `https:${normalized}`;
+  if (normalized.startsWith("/")) return `${BACKEND_ORIGIN}${normalized}`;
+  return `${BACKEND_ORIGIN}/${normalized}`;
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -70,8 +77,8 @@ async function buildCroppedAvatar(
   });
 
   const canvas = document.createElement("canvas");
-  canvas.width = 512;
-  canvas.height = 512;
+  canvas.width = CROP_SIZE;
+  canvas.height = CROP_SIZE;
   const context = canvas.getContext("2d");
   if (!context) throw new Error("تعذر تهيئة أداة الاقتصاص");
 
@@ -90,11 +97,11 @@ async function buildCroppedAvatar(
   context.drawImage(image, drawX, drawY, renderWidth, renderHeight);
 
   const exportCanvas = document.createElement("canvas");
-  exportCanvas.width = 512;
-  exportCanvas.height = 512;
+  exportCanvas.width = AVATAR_EXPORT_SIZE;
+  exportCanvas.height = AVATAR_EXPORT_SIZE;
   const exportContext = exportCanvas.getContext("2d");
   if (!exportContext) throw new Error("تعذر تجهيز الصورة النهائية");
-  exportContext.drawImage(canvas, 0, 0, 512, 512);
+  exportContext.drawImage(canvas, 0, 0, AVATAR_EXPORT_SIZE, AVATAR_EXPORT_SIZE);
 
   const blob = await new Promise<Blob | null>((resolve) =>
     exportCanvas.toBlob((value) => resolve(value), "image/png", 0.95)
@@ -104,9 +111,13 @@ async function buildCroppedAvatar(
 }
 
 export default function SalesPage() {
+  const router = useRouter();
   const { user, token, loading } = useProtectedPage(["sales"]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [query, setQuery] = useState("");
+  const [activeStatus, setActiveStatus] = useState("all");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [loadingCustomers, setLoadingCustomers] = useState(false);
   const [error, setError] = useState("");
   const [profileUser, setProfileUser] = useState(user);
@@ -119,28 +130,78 @@ export default function SalesPage() {
   const [passwordInput, setPasswordInput] = useState("");
   const [selectedAvatarBlob, setSelectedAvatarBlob] = useState<Blob | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
   const [cropSource, setCropSource] = useState<string | null>(null);
   const [cropZoom, setCropZoom] = useState(1);
   const [cropOffsetX, setCropOffsetX] = useState(0);
   const [cropOffsetY, setCropOffsetY] = useState(0);
 
-  const avatarSrc = avatarPreview ?? resolveAvatarUrl(profileUser?.avatar_url);
+  const rawAvatarSrc = avatarPreview ?? resolveAvatarUrl(profileUser?.avatar_url);
+  const avatarSrc = avatarLoadFailed ? null : rawAvatarSrc;
 
   useEffect(() => {
     setProfileUser(user);
   }, [user]);
 
+  const statusCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    customers.forEach((customer) => {
+      const key = (customer.status ?? "").trim();
+      if (!key) return;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    });
+    return counts;
+  }, [customers]);
+
+  const statusFilters = useMemo(() => {
+    const items: Array<{ key: string; label: string; count: number }> = [];
+
+    Object.keys(STATUS_LABELS).forEach((key) => {
+      const count = statusCounts.get(key) ?? 0;
+      items.push({ key, label: STATUS_LABELS[key], count });
+    });
+
+    statusCounts.forEach((count, key) => {
+      if (STATUS_LABELS[key]) return;
+      items.push({ key, label: key.replace(/_/g, " "), count });
+    });
+
+    return items;
+  }, [statusCounts]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return customers;
     return customers.filter((c) => {
+      if (activeStatus !== "all" && c.status !== activeStatus) return false;
+
+      if (fromDate || toDate) {
+        const value = c.updated_at ?? c.created_at;
+        const customerDate = new Date(value);
+        if (Number.isNaN(customerDate.getTime())) return false;
+
+        if (fromDate) {
+          const from = new Date(`${fromDate}T00:00:00`);
+          if (customerDate < from) return false;
+        }
+        if (toDate) {
+          const to = new Date(`${toDate}T23:59:59`);
+          if (customerDate > to) return false;
+        }
+      }
+
+      if (!q) return true;
       return (
         c.name.toLowerCase().includes(q) ||
         c.phone.toLowerCase().includes(q) ||
         (c.profession ?? "").toLowerCase().includes(q)
       );
     });
-  }, [customers, query]);
+  }, [customers, query, activeStatus, fromDate, toDate]);
+
+  useEffect(() => {
+    if (activeStatus === "all") return;
+    if (!statusCounts.has(activeStatus)) setActiveStatus("all");
+  }, [activeStatus, statusCounts]);
 
   const counts = useMemo(() => {
     const now = new Date();
@@ -179,6 +240,10 @@ export default function SalesPage() {
       if (avatarPreview?.startsWith("blob:")) URL.revokeObjectURL(avatarPreview);
     };
   }, [avatarPreview]);
+
+  useEffect(() => {
+    setAvatarLoadFailed(false);
+  }, [rawAvatarSrc]);
 
   useEffect(() => {
     if (!token) return;
@@ -294,7 +359,11 @@ export default function SalesPage() {
             <div className={styles.salesHeroActions}>
               <div className={styles.salesAvatar}>
                 {avatarSrc ? (
-                  <img src={avatarSrc} alt={profileUser?.full_name ?? "صورة الموظف"} />
+                  <img
+                    src={avatarSrc}
+                    alt={profileUser?.full_name ?? "صورة الموظف"}
+                    onError={() => setAvatarLoadFailed(true)}
+                  />
                 ) : (
                   <span>{(profileUser?.full_name?.slice(0, 1) ?? "S").toUpperCase()}</span>
                 )}
@@ -344,31 +413,48 @@ export default function SalesPage() {
 
         <section className={styles.salesBody}>
           <div className={styles.salesSearchRow}>
-            <button className={styles.salesFilterBtn} type="button">
-              فلترة
-            </button>
+            <span className={`${styles.searchIcon} ${styles.searchIconPrimary}`} aria-hidden="true">
+              ⌕
+            </span>
             <input
               className={styles.salesSearchInput}
               placeholder="البحث عن زبون بالاسم او رقم الهاتف ..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
-            <span className={styles.searchIcon}>⌕</span>
           </div>
 
           <div className={styles.salesPills}>
-            <button className={`${styles.salesPill} ${styles.salesPillActive}`} type="button">
+            <button
+              className={`${styles.salesPill} ${activeStatus === "all" ? styles.salesPillActive : ""}`}
+              type="button"
+              onClick={() => setActiveStatus("all")}
+            >
               جميع الزبائن ({counts.all})
             </button>
-            <button className={styles.salesPill} type="button">
-              زبائن اليوم ({counts.today})
-            </button>
-            <button className={styles.salesPill} type="button">
-              زبائن الشهر ({counts.month})
-            </button>
-            <button className={styles.salesPill} type="button">
-              المشترين ({counts.buyers})
-            </button>
+            {statusFilters.map((statusItem) => (
+              <button
+                key={statusItem.key}
+                className={`${styles.salesPill} ${
+                  activeStatus === statusItem.key ? styles.salesPillActive : ""
+                }`}
+                type="button"
+                onClick={() => setActiveStatus(statusItem.key)}
+              >
+                {statusItem.label} ({statusItem.count})
+              </button>
+            ))}
+          </div>
+
+          <div className={styles.salesDateFilters}>
+            <label className={styles.salesDateField}>
+              <span className={styles.salesDateCaption}>من</span>
+              <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+            </label>
+            <label className={styles.salesDateField}>
+              <span className={styles.salesDateCaption}>إلى</span>
+              <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+            </label>
           </div>
 
           {error ? <p className={styles.error}>{error}</p> : null}
@@ -382,12 +468,25 @@ export default function SalesPage() {
             ) : null}
 
             {filtered.map((customer) => {
-              const date = formatCardDate(customer.created_at);
+              const date = formatCardDate(customer.updated_at ?? customer.created_at);
               const statusText = STATUS_LABELS[customer.status ?? ""] ?? "مهتم";
               return (
                 <article key={customer.id} className={styles.salesCustomerCard}>
-                  <div className={styles.salesCardMain}>
-                    <div className={styles.salesCardImage} />
+                  <div
+                    className={styles.salesCardMain}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => router.push(`/sales/customers/${customer.id}`)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        router.push(`/sales/customers/${customer.id}`);
+                      }
+                    }}
+                  >
+                    <div className={styles.salesCardImage}>
+                      <img src="/assets/Faceless Corporate Real Estate Avatar.png" alt="صورة الزبون" />
+                    </div>
 
                     <div className={styles.salesCardInfo}>
                       <h3>{customer.name}</h3>
@@ -401,16 +500,10 @@ export default function SalesPage() {
                     </div>
 
                     <div className={styles.salesCardDate}>
-                      <small>السبت</small>
+                      <small>اخر زيارة</small>
                       <strong>{date.day}</strong>
                       <span>{date.monthYear}</span>
                     </div>
-                  </div>
-
-                  <div className={styles.salesCardActions}>
-                    <button type="button">اتصال</button>
-                    <button type="button">السجل</button>
-                    <button type="button">ملاحظات</button>
                   </div>
                 </article>
               );
@@ -426,7 +519,7 @@ export default function SalesPage() {
               <div className={styles.profileAvatarEditor}>
                 <div className={styles.profileAvatarPreview}>
                   {avatarSrc ? (
-                    <img src={avatarSrc} alt="معاينة صورة الموظف" />
+                    <img src={avatarSrc} alt="معاينة صورة الموظف" onError={() => setAvatarLoadFailed(true)} />
                   ) : (
                     <span>{(profileUser?.full_name?.slice(0, 1) ?? "S").toUpperCase()}</span>
                   )}
@@ -546,27 +639,6 @@ export default function SalesPage() {
           </section>
         ) : null}
 
-        <footer className={styles.bottomNav}>
-          <button className={styles.navItem} type="button">
-            <span>🏠</span>
-            <small>الرئيسية</small>
-          </button>
-          <button className={`${styles.navItem} ${styles.navItemActive}`} type="button">
-            <span>👥</span>
-            <small>زبائني</small>
-          </button>
-          <button className={styles.addButton} type="button" aria-label="اضافة زبون">
-            +
-          </button>
-          <button className={styles.navItem} type="button">
-            <span>📅</span>
-            <small>المواعيد</small>
-          </button>
-          <button className={styles.navItem} type="button">
-            <span>⋯</span>
-            <small>المزيد</small>
-          </button>
-        </footer>
       </section>
     </main>
   );

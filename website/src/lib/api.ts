@@ -62,6 +62,80 @@ export async function listCustomers(token: string, search = ""): Promise<Paginat
   });
 }
 
+export async function getCustomer(token: string, customerId: string): Promise<Customer> {
+  return request<Customer>(`customers/${customerId}`, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+}
+
+export interface UpdateCustomerPayload {
+  status?: string | null;
+  notes?: string | null;
+}
+
+export async function updateCustomer(
+  token: string,
+  customerId: string,
+  payload: UpdateCustomerPayload
+): Promise<Customer> {
+  return request<Customer>(`customers/${customerId}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function uploadCustomerDocument(
+  token: string,
+  customerId: string,
+  file: File,
+  notes?: string
+): Promise<void> {
+  const formData = new FormData();
+  formData.append("file", file);
+  if (notes?.trim()) formData.append("notes", notes.trim());
+
+  const response = await fetch(withPath(`customers/${customerId}/documents`), {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`
+    },
+    body: formData
+  });
+
+  if (!response.ok) throw await parseApiError(response);
+}
+
+export interface CreateDealPayload {
+  customer_id: string;
+  name: string;
+  phone: string;
+  house_type: "house" | "villa";
+  total_price: number;
+  payment_type: "cash" | "half_cash" | "installments";
+  down_payment: number;
+  profession?: string | null;
+  email?: string | null;
+  house_area?: number | null;
+  residential_block?: string | null;
+  house_number?: string | null;
+  notes?: string | null;
+}
+
+export async function createDeal(token: string, payload: CreateDealPayload): Promise<void> {
+  await request("deals", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify(payload)
+  });
+}
+
 export interface UpdateUserPayload {
   username?: string;
   full_name?: string;
