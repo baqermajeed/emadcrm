@@ -1,4 +1,4 @@
-import type { Customer, LoginResponse, PaginatedResponse, User } from "@/types";
+import type { Customer, Deal, LoginResponse, PaginatedResponse, User, Visit } from "@/types";
 
 const baseURL = "/api/backend";
 
@@ -134,6 +134,44 @@ export async function createDeal(token: string, payload: CreateDealPayload): Pro
     },
     body: JSON.stringify(payload)
   });
+}
+
+export async function listCustomerVisits(token: string, customerId: string): Promise<Visit[]> {
+  return request<Visit[]>(`visits/customer/${customerId}`, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+}
+
+export interface CreateVisitPayload {
+  customer_id: string;
+  visit_date?: string;
+  notes?: string | null;
+}
+
+export async function createVisit(token: string, payload: CreateVisitPayload): Promise<void> {
+  await request("visits", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function listCustomerDeals(token: string, customerId: string): Promise<Deal[]> {
+  const params = new URLSearchParams({
+    customer_id: customerId,
+    page_size: "50",
+    sort_dir: "desc"
+  });
+  const data = await request<PaginatedResponse<Deal>>(`deals?${params.toString()}`, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+  return data.items;
 }
 
 export interface UpdateUserPayload {

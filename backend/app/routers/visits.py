@@ -21,7 +21,7 @@ AccessDep = Annotated[
 ]
 CreateDep = Annotated[
     dict,
-    Depends(require_roles(UserRole.RECEPTION, UserRole.MANAGER)),
+    Depends(require_roles(UserRole.RECEPTION, UserRole.MANAGER, UserRole.SALES)),
 ]
 
 

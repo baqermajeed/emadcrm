@@ -37,6 +37,10 @@ class VisitService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
 
         sales_id = data.sales_employee_id or str(customer.get("sales_employee_id") or "")
+        if actor.get("role") == "sales":
+            if str(customer.get("sales_employee_id") or "") != actor.get("id"):
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your customer")
+            sales_id = actor["id"]
         now = utcnow()
         doc = {
             "customer_id": data.customer_id,

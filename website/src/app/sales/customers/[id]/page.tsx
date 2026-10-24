@@ -2,9 +2,17 @@
 
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { createDeal, getCustomer, updateCustomer, uploadCustomerDocument } from "@/lib/api";
+import {
+  createDeal,
+  createVisit,
+  getCustomer,
+  listCustomerDeals,
+  listCustomerVisits,
+  updateCustomer,
+  uploadCustomerDocument
+} from "@/lib/api";
 import { useProtectedPage } from "@/lib/auth";
-import type { Customer, DocumentOut } from "@/types";
+import type { Customer, Deal, DocumentOut, Visit } from "@/types";
 import styles from "./customer.module.css";
 
 const BACKEND_ORIGIN = process.env.NEXT_PUBLIC_BACKEND_ORIGIN ?? "https://emadcrm.compassaccuracy.com";
@@ -19,6 +27,17 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const STATUS_OPTIONS = Object.entries(STATUS_LABELS);
+
+const PAYMENT_TYPE_LABELS: Record<string, string> = {
+  cash: "كاش",
+  half_cash: "نصف كاش",
+  installments: "دفعات"
+};
+
+const HOUSE_TYPE_LABELS: Record<string, string> = {
+  house: "دار",
+  villa: "فيلا"
+};
 
 function resolveAssetUrl(url: string): string {
   if (/^https?:\/\//i.test(url)) return url;
@@ -40,6 +59,10 @@ function formatDateTime(value: string | null | undefined): string {
   });
 }
 
+function formatMoney(value: number): string {
+  return new Intl.NumberFormat("en-US").format(Math.round(value));
+}
+
 function isImageDocument(doc: DocumentOut): boolean {
   return doc.content_type.startsWith("image/");
 }
@@ -52,7 +75,10 @@ export default function SalesCustomerProfilePage() {
 
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [fetching, setFetching] = useState(false);
+  const [loadingDetails, setLoadingDetails] = useState(false);
   const [error, setError] = useState("");
+  const [visits, setVisits] = useState<Visit[]>([]);
+  const [deals, setDeals] = useState<Deal[]>([]);
 
   const [statusValue, setStatusValue] = useState("potential");
   const [statusSaving, setStatusSaving] = useState(false);
@@ -62,6 +88,8 @@ export default function SalesCustomerProfilePage() {
 
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadingDoc, setUploadingDoc] = useState(false);
+  const [visitSaving, setVisitSaving] = useState(false);
+  const [visitNote, setVisitNote] = useState("");
   const [dealSaving, setDealSaving] = useState(false);
   const [dealForm, setDealForm] = useState({
     houseType: "house",
@@ -101,8 +129,26 @@ export default function SalesCustomerProfilePage() {
     }
   }
 
+  async function loadDetails() {
+    if (!token || !customerId) return;
+    setLoadingDetails(true);
+    try {
+      const [visitData, dealData] = await Promise.all([
+        listCustomerVisits(token, customerId),
+        listCustomerDeals(token, customerId)
+      ]);
+      setVisits(visitData);
+      setDeals(dealData);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "تعذر تحميل تفاصيل ملف الزبون");
+    } finally {
+      setLoadingDetails(false);
+    }
+  }
+
   useEffect(() => {
-    loadCustomer();
+    void loadCustomer();
+    void loadDetails();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, customerId]);
 
@@ -167,6 +213,24 @@ export default function SalesCustomerProfilePage() {
     void uploadFile(file, "doc");
   }
 
+  async function addVisit() {
+    if (!token || !customerId || !visitNote.trim()) return;
+    setVisitSaving(true);
+    setError("");
+    try {
+      await createVisit(token, {
+        customer_id: customerId,
+        notes: visitNote.trim()
+      });
+      setVisitNote("");
+      await loadDetails();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "تعذر إضافة الزيارة");
+    } finally {
+      setVisitSaving(false);
+    }
+  }
+
   async function addDeal() {
     if (!token || !customerId || !customer) return;
     const totalPrice = Number(dealForm.totalPrice);
@@ -214,11 +278,26 @@ export default function SalesCustomerProfilePage() {
         houseNumber: "",
         notes: ""
       });
+      await loadDetails();
     } catch (err) {
       setError(err instanceof Error ? err.message : "تعذر إضافة صفقة البيع");
     } finally {
       setDealSaving(false);
     }
+  }
+
+  const lastVisitDate = visits[0]?.visit_date ?? null;
+  const lastDealDate = deals[0]?.sale_date ?? null;
+  const totalDealsValue = deals.reduce((sum, deal) => sum + (deal.total_price || 0), 0);
+
+  function navigateBackToSales() {
+    const targetPath = "/sales";
+    router.push(targetPath);
+    window.setTimeout(() => {
+      if (window.location.pathname !== targetPath) {
+        window.location.assign(targetPath);
+      }
+    }, 180);
   }
 
   if (loading || fetching) {
@@ -245,7 +324,12 @@ export default function SalesCustomerProfilePage() {
   return (
     <main className={styles.page}>
       <section className={styles.headerCard}>
-        <button className={styles.backBtn} type="button" onClick={() => router.push("/sales")}>
+        <button
+          className={styles.backBtn}
+          type="button"
+          onClick={navigateBackToSales}
+          onTouchEnd={navigateBackToSales}
+        >
           رجوع
         </button>
         <div className={styles.profileBlock}>
@@ -259,6 +343,55 @@ export default function SalesCustomerProfilePage() {
       </section>
 
       {error ? <p className={styles.error}>{error}</p> : null}
+
+      <section className={styles.statsGrid}>
+        <article className={styles.statBox}>
+          <small>عدد الزيارات</small>
+          <strong>{visits.length}</strong>
+        </article>
+        <article className={styles.statBox}>
+          <small>عدد الصفقات</small>
+          <strong>{deals.length}</strong>
+        </article>
+        <article className={styles.statBox}>
+          <small>آخر زيارة</small>
+          <strong>{formatDateTime(lastVisitDate)}</strong>
+        </article>
+        <article className={styles.statBox}>
+          <small>إجمالي البيع</small>
+          <strong>{formatMoney(totalDealsValue)} د.ع</strong>
+        </article>
+      </section>
+
+      <section className={styles.card}>
+        <h3>المعلومات الأساسية</h3>
+        <div className={styles.infoGrid}>
+          <div>
+            <small>الحالة</small>
+            <p>{STATUS_LABELS[customer.status ?? ""] ?? "غير محدد"}</p>
+          </div>
+          <div>
+            <small>المهنة</small>
+            <p>{customer.profession || "-"}</p>
+          </div>
+          <div>
+            <small>العنوان</small>
+            <p>{customer.address || "-"}</p>
+          </div>
+          <div>
+            <small>البريد</small>
+            <p>{customer.email || "-"}</p>
+          </div>
+          <div>
+            <small>البلوك/الحجز</small>
+            <p>{customer.booking_id || "-"}</p>
+          </div>
+          <div>
+            <small>موظف المبيعات</small>
+            <p>{customer.sales_employee_name || "-"}</p>
+          </div>
+        </div>
+      </section>
 
       <section className={styles.card}>
         <h3>تحديث حالة الزبون</h3>
@@ -288,6 +421,60 @@ export default function SalesCustomerProfilePage() {
         <button className={styles.primaryBtn} type="button" onClick={addNote} disabled={noteSaving}>
           {noteSaving ? "جارِ الإضافة..." : "إضافة ملاحظة"}
         </button>
+      </section>
+
+      <section className={styles.card}>
+        <div className={styles.sectionHead}>
+          <h3>سجل الزيارات</h3>
+          {loadingDetails ? <small className={styles.muted}>جارِ التحميل...</small> : null}
+        </div>
+        <div className={styles.visitComposer}>
+          <textarea
+            className={styles.textarea}
+            value={visitNote}
+            onChange={(e) => setVisitNote(e.target.value)}
+            placeholder="أضف ملاحظة زيارة جديدة..."
+          />
+          <button className={styles.secondaryBtn} type="button" onClick={addVisit} disabled={visitSaving}>
+            {visitSaving ? "جارِ الإضافة..." : "إضافة زيارة جديدة"}
+          </button>
+        </div>
+        <div className={styles.timelineList}>
+          {visits.length ? (
+            visits.map((visit) => (
+              <article key={visit.id} className={styles.timelineItem}>
+                <strong>{formatDateTime(visit.visit_date)}</strong>
+                <p>{visit.notes || "بدون ملاحظة"}</p>
+              </article>
+            ))
+          ) : (
+            <p className={styles.muted}>لا توجد زيارات مسجلة</p>
+          )}
+        </div>
+      </section>
+
+      <section className={styles.card}>
+        <div className={styles.sectionHead}>
+          <h3>صفقات البيع</h3>
+          {loadingDetails ? <small className={styles.muted}>جارِ التحميل...</small> : null}
+        </div>
+        <div className={styles.timelineList}>
+          {deals.length ? (
+            deals.map((deal) => (
+              <article key={deal.id} className={styles.timelineItem}>
+                <strong>
+                  {HOUSE_TYPE_LABELS[deal.house_type] ?? deal.house_type} {deal.house_number ?? "-"} |{" "}
+                  {formatMoney(deal.total_price)} د.ع
+                </strong>
+                <p>
+                  {PAYMENT_TYPE_LABELS[deal.payment_type] ?? deal.payment_type} - {formatDateTime(deal.sale_date)}
+                </p>
+              </article>
+            ))
+          ) : (
+            <p className={styles.muted}>لا توجد صفقات بيع مسجلة</p>
+          )}
+        </div>
       </section>
 
       <section className={styles.card}>

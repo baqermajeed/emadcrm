@@ -59,3 +59,40 @@ export interface PaginatedResponse<T> {
   page_size: number;
   pages: number;
 }
+
+export interface Visit {
+  id: string;
+  customer_id: string;
+  visit_date: string;
+  notes: string | null;
+  sales_employee_id: string | null;
+  sales_employee_name: string | null;
+  sales_employee_avatar_url: string | null;
+  recorded_by_avatar_url: string | null;
+  recorded_by: string | null;
+  recorded_by_name: string | null;
+  created_at: string;
+}
+
+export interface Deal {
+  id: string;
+  customer_id: string;
+  name: string;
+  profession: string | null;
+  email: string | null;
+  phone: string;
+  house_type: "house" | "villa";
+  house_area: number | null;
+  residential_block: string | null;
+  house_number: string | null;
+  total_price: number;
+  payment_type: "cash" | "half_cash" | "installments";
+  down_payment: number;
+  status: "completed";
+  notes: string | null;
+  sales_employee_id: string;
+  sales_employee_name: string | null;
+  sales_employee_avatar_url: string | null;
+  sale_date: string;
+  created_at: string;
+}

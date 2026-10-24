@@ -1,8 +1,14 @@
 "use client";
 
-import { ChangeEvent, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { listCustomers, updateUserProfile, uploadUserAvatar } from "@/lib/api";
+import { ChangeEvent, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  createDeal,
+  getCustomer,
+  listCustomers,
+  updateCustomer,
+  updateUserProfile,
+  uploadUserAvatar
+} from "@/lib/api";
 import { useProtectedPage } from "@/lib/auth";
 import { storage } from "@/lib/storage";
 import type { Customer } from "@/types";
@@ -111,7 +117,6 @@ async function buildCroppedAvatar(
 }
 
 export default function SalesPage() {
-  const router = useRouter();
   const { user, token, loading } = useProtectedPage(["sales"]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [query, setQuery] = useState("");
@@ -135,6 +140,23 @@ export default function SalesPage() {
   const [cropZoom, setCropZoom] = useState(1);
   const [cropOffsetX, setCropOffsetX] = useState(0);
   const [cropOffsetY, setCropOffsetY] = useState(0);
+  const [activeCustomer, setActiveCustomer] = useState<Customer | null>(null);
+  const [quickAction, setQuickAction] = useState<"status" | "note" | "deal" | null>(null);
+  const [quickStatus, setQuickStatus] = useState("potential");
+  const [quickNote, setQuickNote] = useState("");
+  const [quickSaving, setQuickSaving] = useState(false);
+  const [noteLoading, setNoteLoading] = useState(false);
+  const [quickError, setQuickError] = useState("");
+  const [dealForm, setDealForm] = useState({
+    houseType: "house",
+    paymentType: "cash",
+    totalPrice: "",
+    downPayment: "",
+    houseArea: "",
+    block: "",
+    houseNumber: "",
+    notes: ""
+  });
 
   const rawAvatarSrc = avatarPreview ?? resolveAvatarUrl(profileUser?.avatar_url);
   const avatarSrc = avatarLoadFailed ? null : rawAvatarSrc;
@@ -270,6 +292,12 @@ export default function SalesPage() {
     };
   }, [token]);
 
+  const reloadCustomers = useCallback(async () => {
+    if (!token) return;
+    const data = await listCustomers(token);
+    setCustomers(data.items);
+  }, [token]);
+
   function openProfileEditor() {
     setProfileError("");
     setFullNameInput(profileUser?.full_name ?? "");
@@ -339,6 +367,132 @@ export default function SalesPage() {
       setProfileError(err instanceof Error ? err.message : "تعذر تحديث معلومات الموظف");
     } finally {
       setIsSavingProfile(false);
+    }
+  }
+
+  function normalizeWhatsappPhone(raw: string): string {
+    const digits = raw.replace(/\D/g, "");
+    if (digits.startsWith("964")) return digits;
+    if (digits.startsWith("0")) return `964${digits.slice(1)}`;
+    return digits;
+  }
+
+  function openWhatsapp(phone: string) {
+    const normalized = normalizeWhatsappPhone(phone);
+    const url = `https://wa.me/${normalized}`;
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+
+  async function openQuickAction(customer: Customer, action: "status" | "note" | "deal") {
+    setActiveCustomer(customer);
+    setQuickAction(action);
+    setQuickError("");
+    setQuickStatus(customer.status ?? "potential");
+    setQuickNote("");
+    if (action === "note" && token) {
+      setNoteLoading(true);
+      try {
+        const freshCustomer = await getCustomer(token, customer.id);
+        setActiveCustomer(freshCustomer);
+      } catch {
+        // Keep current card data if fresh fetch fails
+      } finally {
+        setNoteLoading(false);
+      }
+    }
+  }
+
+  function closeQuickAction() {
+    setQuickAction(null);
+    setActiveCustomer(null);
+    setQuickError("");
+    setQuickNote("");
+  }
+
+  async function submitStatus() {
+    if (!token || !activeCustomer) return;
+    setQuickSaving(true);
+    setQuickError("");
+    try {
+      await updateCustomer(token, activeCustomer.id, { status: quickStatus });
+      await reloadCustomers();
+      closeQuickAction();
+    } catch (err) {
+      setQuickError(err instanceof Error ? err.message : "تعذر تحديث حالة الزبون");
+    } finally {
+      setQuickSaving(false);
+    }
+  }
+
+  async function submitNote() {
+    if (!token || !activeCustomer || !quickNote.trim()) return;
+    setQuickSaving(true);
+    setQuickError("");
+    try {
+      const stamped = `[${new Date().toLocaleString("ar-IQ")}] ${quickNote.trim()}`;
+      const merged = activeCustomer.notes ? `${activeCustomer.notes}\n${stamped}` : stamped;
+      await updateCustomer(token, activeCustomer.id, { notes: merged });
+      await reloadCustomers();
+      closeQuickAction();
+    } catch (err) {
+      setQuickError(err instanceof Error ? err.message : "تعذر إضافة الملاحظة");
+    } finally {
+      setQuickSaving(false);
+    }
+  }
+
+  async function submitDeal() {
+    if (!token || !activeCustomer) return;
+    const totalPrice = Number(dealForm.totalPrice);
+    const downPayment = Number(dealForm.downPayment);
+    const houseArea = dealForm.houseArea.trim() ? Number(dealForm.houseArea) : null;
+    if (!Number.isFinite(totalPrice) || totalPrice <= 0) {
+      setQuickError("السعر الكلي غير صالح");
+      return;
+    }
+    if (!Number.isFinite(downPayment) || downPayment < 0) {
+      setQuickError("الدفعة الأولى غير صالحة");
+      return;
+    }
+    if (houseArea !== null && (!Number.isFinite(houseArea) || houseArea <= 0)) {
+      setQuickError("المساحة غير صالحة");
+      return;
+    }
+
+    setQuickSaving(true);
+    setQuickError("");
+    try {
+      await createDeal(token, {
+        customer_id: activeCustomer.id,
+        name: activeCustomer.name,
+        profession: activeCustomer.profession,
+        email: activeCustomer.email,
+        phone: activeCustomer.phone,
+        house_type: dealForm.houseType as "house" | "villa",
+        total_price: totalPrice,
+        payment_type: dealForm.paymentType as "cash" | "half_cash" | "installments",
+        down_payment: downPayment,
+        house_area: houseArea,
+        residential_block: dealForm.block.trim() || null,
+        house_number: dealForm.houseNumber.trim() || null,
+        notes: dealForm.notes.trim() || null
+      });
+      await reloadCustomers();
+      setDealForm({
+        houseType: "house",
+        paymentType: "cash",
+        totalPrice: "",
+        downPayment: "",
+        houseArea: "",
+        block: "",
+        houseNumber: "",
+        notes: ""
+      });
+      closeQuickAction();
+    } catch (err) {
+      setQuickError(err instanceof Error ? err.message : "تعذر إضافة الصفقة");
+    } finally {
+      setQuickSaving(false);
     }
   }
 
@@ -472,18 +626,7 @@ export default function SalesPage() {
               const statusText = STATUS_LABELS[customer.status ?? ""] ?? "مهتم";
               return (
                 <article key={customer.id} className={styles.salesCustomerCard}>
-                  <div
-                    className={styles.salesCardMain}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => router.push(`/sales/customers/${customer.id}`)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        router.push(`/sales/customers/${customer.id}`);
-                      }
-                    }}
-                  >
+                  <div className={styles.salesCardMain}>
                     <div className={styles.salesCardImage}>
                       <img src="/assets/Faceless Corporate Real Estate Avatar.png" alt="صورة الزبون" />
                     </div>
@@ -505,11 +648,182 @@ export default function SalesPage() {
                       <span>{date.monthYear}</span>
                     </div>
                   </div>
+
+                  <div className={styles.salesCardActions}>
+                    <button type="button" onClick={() => openWhatsapp(customer.phone)}>
+                      تواصل
+                    </button>
+                    <button type="button" onClick={() => void openQuickAction(customer, "note")}>
+                      ملاحظة
+                    </button>
+                    <button type="button" onClick={() => void openQuickAction(customer, "deal")}>
+                      صفقة
+                    </button>
+                    <button type="button" onClick={() => void openQuickAction(customer, "status")}>
+                      الحالة
+                    </button>
+                  </div>
                 </article>
               );
             })}
           </div>
         </section>
+
+        {quickAction && activeCustomer ? (
+          <section className={styles.profileModal}>
+            <div className={styles.profileCard}>
+              <h3>
+                {quickAction === "status"
+                  ? "تغيير حالة الزبون"
+                  : quickAction === "note"
+                    ? "إضافة ملاحظة"
+                    : "إضافة صفقة"}
+              </h3>
+
+              {quickAction === "status" ? (
+                <label className={styles.profileLabel}>
+                  الحالة
+                  <select
+                    className={styles.profileInput}
+                    value={quickStatus}
+                    onChange={(e) => setQuickStatus(e.target.value)}
+                  >
+                    <option value="potential">محتمل</option>
+                    <option value="interested">مهتم</option>
+                    <option value="hesitant">متردد</option>
+                    <option value="reservation">زيارة مجدولة</option>
+                    <option value="not_interested">غير مهتم</option>
+                    <option value="buyer">تم الشراء</option>
+                  </select>
+                </label>
+              ) : null}
+
+              {quickAction === "note" ? (
+                <>
+                  <label className={styles.profileLabel}>
+                    الملاحظات السابقة
+                    <div className={styles.noteHistoryBox}>
+                      {noteLoading
+                        ? "جارِ تحميل الملاحظات..."
+                        : activeCustomer.notes?.trim() || "لا توجد ملاحظات سابقة"}
+                    </div>
+                  </label>
+                  <label className={styles.profileLabel}>
+                    إضافة ملاحظة جديدة
+                    <textarea
+                      className={styles.profileInput}
+                      value={quickNote}
+                      onChange={(e) => setQuickNote(e.target.value)}
+                      placeholder="اكتب ملاحظة جديدة..."
+                      rows={4}
+                    />
+                  </label>
+                </>
+              ) : null}
+
+              {quickAction === "deal" ? (
+                <div className={styles.quickDealGrid}>
+                  <label className={styles.profileLabel}>
+                    نوع العقار
+                    <select
+                      className={styles.profileInput}
+                      value={dealForm.houseType}
+                      onChange={(e) => setDealForm((prev) => ({ ...prev, houseType: e.target.value }))}
+                    >
+                      <option value="house">دار</option>
+                      <option value="villa">فيلا</option>
+                    </select>
+                  </label>
+                  <label className={styles.profileLabel}>
+                    نوع الدفع
+                    <select
+                      className={styles.profileInput}
+                      value={dealForm.paymentType}
+                      onChange={(e) => setDealForm((prev) => ({ ...prev, paymentType: e.target.value }))}
+                    >
+                      <option value="cash">كاش</option>
+                      <option value="half_cash">نصف كاش</option>
+                      <option value="installments">دفعات</option>
+                    </select>
+                  </label>
+                  <label className={styles.profileLabel}>
+                    السعر الكلي
+                    <input
+                      className={styles.profileInput}
+                      value={dealForm.totalPrice}
+                      onChange={(e) => setDealForm((prev) => ({ ...prev, totalPrice: e.target.value }))}
+                      inputMode="decimal"
+                    />
+                  </label>
+                  <label className={styles.profileLabel}>
+                    الدفعة الأولى
+                    <input
+                      className={styles.profileInput}
+                      value={dealForm.downPayment}
+                      onChange={(e) => setDealForm((prev) => ({ ...prev, downPayment: e.target.value }))}
+                      inputMode="decimal"
+                    />
+                  </label>
+                  <label className={styles.profileLabel}>
+                    المساحة
+                    <input
+                      className={styles.profileInput}
+                      value={dealForm.houseArea}
+                      onChange={(e) => setDealForm((prev) => ({ ...prev, houseArea: e.target.value }))}
+                      inputMode="decimal"
+                    />
+                  </label>
+                  <label className={styles.profileLabel}>
+                    البلوك
+                    <input
+                      className={styles.profileInput}
+                      value={dealForm.block}
+                      onChange={(e) => setDealForm((prev) => ({ ...prev, block: e.target.value }))}
+                    />
+                  </label>
+                  <label className={styles.profileLabel}>
+                    رقم الدار
+                    <input
+                      className={styles.profileInput}
+                      value={dealForm.houseNumber}
+                      onChange={(e) => setDealForm((prev) => ({ ...prev, houseNumber: e.target.value }))}
+                    />
+                  </label>
+                  <label className={styles.profileLabel}>
+                    ملاحظة الصفقة
+                    <textarea
+                      className={styles.profileInput}
+                      value={dealForm.notes}
+                      onChange={(e) => setDealForm((prev) => ({ ...prev, notes: e.target.value }))}
+                      rows={3}
+                    />
+                  </label>
+                </div>
+              ) : null}
+
+              {quickError ? <p className={styles.profileError}>{quickError}</p> : null}
+
+              <div className={styles.profileActions}>
+                <button type="button" onClick={closeQuickAction}>
+                  إلغاء
+                </button>
+                <button
+                  type="button"
+                  disabled={quickSaving}
+                  onClick={
+                    quickAction === "status"
+                      ? submitStatus
+                      : quickAction === "note"
+                        ? submitNote
+                        : submitDeal
+                  }
+                >
+                  {quickSaving ? "جارِ الحفظ..." : "حفظ"}
+                </button>
+              </div>
+            </div>
+          </section>
+        ) : null}
 
         {isEditOpen ? (
           <section className={styles.profileModal}>
