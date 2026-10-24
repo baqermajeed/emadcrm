@@ -1,5 +1,13 @@
 import type { Metadata } from "next";
+import localFont from "next/font/local";
 import "./globals.css";
+
+const lamaSans = localFont({
+  src: "../../../frontend_desc/assets/fonts/LamaSans-SemiBold.otf",
+  weight: "600",
+  style: "normal",
+  display: "swap"
+});
 
 export const metadata: Metadata = {
   title: "Emad CRM Web",
@@ -9,7 +17,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ar" dir="rtl">
-      <body>{children}</body>
+      <body className={lamaSans.className}>{children}</body>
     </html>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { User, UserRole } from "@/types";
 import { storage } from "@/lib/storage";
@@ -9,6 +9,7 @@ export function useProtectedPage(allowedRoles?: UserRole[]) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const validatedTokenRef = useRef<string | null>(null);
   const allowedRolesKey = allowedRoles?.join("|") ?? "";
 
   useEffect(() => {
@@ -25,8 +26,14 @@ export function useProtectedPage(allowedRoles?: UserRole[]) {
       return;
     }
 
-    setUser(currentUser);
-    setToken(currentToken);
+    setUser((previous) => (previous?.id === currentUser.id ? previous : currentUser));
+    setToken((previous) => (previous === currentToken ? previous : currentToken));
+
+    // Prevent repeated /auth/me requests when the effect re-runs with the same token.
+    if (validatedTokenRef.current === currentToken) {
+      setLoading(false);
+      return;
+    }
 
     let cancelled = false;
     (async () => {
@@ -38,6 +45,7 @@ export function useProtectedPage(allowedRoles?: UserRole[]) {
           return;
         }
         storage.setUser(freshUser);
+        validatedTokenRef.current = currentToken;
         setUser(freshUser);
       } catch {
         // Keep using cached user if network request fails.
@@ -49,7 +57,9 @@ export function useProtectedPage(allowedRoles?: UserRole[]) {
     return () => {
       cancelled = true;
     };
-  }, [allowedRolesKey, router]);
+    // Including `router` here may re-trigger this effect repeatedly in dev and spam /auth/me.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allowedRolesKey]);
 
   return { user, token, loading };
 }

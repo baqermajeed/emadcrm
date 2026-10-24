@@ -16,10 +16,11 @@ import { storage } from "@/lib/storage";
 import type { Customer, CustomerSalesNote, Deal } from "@/types";
 import styles from "./sales.module.css";
 
-const BACKEND_ORIGIN = process.env.NEXT_PUBLIC_BACKEND_ORIGIN ?? "https://emadcrm.compassaccuracy.com";
+const BACKEND_ORIGIN = (
+  process.env.NEXT_PUBLIC_BACKEND_ORIGIN ?? "https://emadcrm.compassaccuracy.com"
+).replace(/\/+$/, "");
 const CROP_SIZE = 280;
 const AVATAR_EXPORT_SIZE = 512;
-const DEFAULT_EMPLOYEE_AVATAR = "/assets/Faceless Corporate Real Estate Avatar.png";
 
 const STATUS_LABELS: Record<string, string> = {
   buyer: "تم الشراء",
@@ -80,8 +81,22 @@ function resolveAvatarUrl(value: string | null | undefined): string | null {
   const lowered = normalized.toLowerCase();
   if (lowered === "null" || lowered === "undefined" || lowered === "none") return null;
   if (/^data:image\//i.test(normalized)) return normalized;
-  if (/^https?:\/\//i.test(normalized)) return normalized;
-  if (normalized.startsWith("//")) return `https:${normalized}`;
+  if (/^https?:\/\//i.test(normalized)) {
+    try {
+      const parsed = new URL(normalized);
+      return parsed.origin === BACKEND_ORIGIN ? normalized : null;
+    } catch {
+      return null;
+    }
+  }
+  if (normalized.startsWith("//")) {
+    try {
+      const parsed = new URL(`https:${normalized}`);
+      return parsed.origin === BACKEND_ORIGIN ? parsed.toString() : null;
+    } catch {
+      return null;
+    }
+  }
   if (normalized.startsWith("/")) return `${BACKEND_ORIGIN}${normalized}`;
   return `${BACKEND_ORIGIN}/${normalized}`;
 }
@@ -183,12 +198,17 @@ export default function SalesPage() {
     notes: ""
   });
 
-  const rawAvatarSrc = avatarPreview ?? resolveAvatarUrl(profileUser?.avatar_url);
-  const avatarSrc = rawAvatarSrc ?? DEFAULT_EMPLOYEE_AVATAR;
+  const avatarSrc = avatarPreview ?? resolveAvatarUrl(profileUser?.avatar_url);
+  const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
+  const shouldShowAvatarImage = Boolean(avatarSrc) && !avatarLoadFailed;
 
   useEffect(() => {
     setProfileUser(user);
   }, [user]);
+
+  useEffect(() => {
+    setAvatarLoadFailed(false);
+  }, [avatarSrc]);
 
   const statusCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -554,16 +574,11 @@ export default function SalesPage() {
           <div className={styles.salesHeroTop}>
             <div className={styles.salesHeroActions}>
               <div className={styles.salesAvatar}>
-                {avatarSrc ? (
+                {shouldShowAvatarImage ? (
                   <img
-                    src={avatarSrc}
+                    src={avatarSrc ?? ""}
                     alt={profileUser?.full_name ?? "صورة الموظف"}
-                    onError={(e) => {
-                      const img = e.currentTarget;
-                      if (!img.src.endsWith(DEFAULT_EMPLOYEE_AVATAR)) {
-                        img.src = DEFAULT_EMPLOYEE_AVATAR;
-                      }
-                    }}
+                    onError={() => setAvatarLoadFailed(true)}
                   />
                 ) : (
                   <span>{(profileUser?.full_name?.slice(0, 1) ?? "S").toUpperCase()}</span>
@@ -1046,16 +1061,11 @@ export default function SalesPage() {
 
               <div className={styles.profileAvatarEditor}>
                 <div className={styles.profileAvatarPreview}>
-                  {avatarSrc ? (
+                  {shouldShowAvatarImage ? (
                     <img
-                      src={avatarSrc}
+                      src={avatarSrc ?? ""}
                       alt="معاينة صورة الموظف"
-                      onError={(e) => {
-                        const img = e.currentTarget;
-                        if (!img.src.endsWith(DEFAULT_EMPLOYEE_AVATAR)) {
-                          img.src = DEFAULT_EMPLOYEE_AVATAR;
-                        }
-                      }}
+                      onError={() => setAvatarLoadFailed(true)}
                     />
                   ) : (
                     <span>{(profileUser?.full_name?.slice(0, 1) ?? "S").toUpperCase()}</span>
