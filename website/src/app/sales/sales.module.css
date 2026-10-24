@@ -62,7 +62,7 @@
   position: relative;
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: space-between;
   min-height: 58px;
 }
 
@@ -110,6 +110,32 @@
   padding: 0 10px;
   font-size: 0.79rem;
   font-weight: 700;
+}
+
+.logoutIconBtn {
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(255, 96, 113, 0.24);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.logoutIconBtn:hover {
+  background: rgba(255, 96, 113, 0.38);
+  transform: translateY(-1px);
+}
+
+.logoutIconBtn svg {
+  width: 20px;
+  height: 20px;
+  transform: rotate(180deg);
 }
 
 .salesBell {

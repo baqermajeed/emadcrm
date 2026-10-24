@@ -1,6 +1,7 @@
 "use client";
 
 import { ChangeEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   addCustomerSalesNote,
   createDeal,
@@ -154,6 +155,7 @@ async function buildCroppedAvatar(
 }
 
 export default function SalesPage() {
+  const router = useRouter();
   const { user, token, loading } = useProtectedPage(["sales"]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [query, setQuery] = useState("");
@@ -424,6 +426,11 @@ export default function SalesPage() {
     window.open(url, "_blank", "noopener,noreferrer");
   }
 
+  function logout() {
+    storage.clear();
+    router.replace("/");
+  }
+
   async function openQuickAction(customer: Customer, action: "status" | "note" | "deal") {
     setActiveCustomer(customer);
     setQuickAction(action);
@@ -597,9 +604,40 @@ export default function SalesPage() {
               <strong>عماد سكر</strong>
               <small>نظام ادراة مبيعات المجمع</small>
             </div>
+            <button
+              className={styles.logoutIconBtn}
+              type="button"
+              onClick={logout}
+              aria-label="تسجيل خروج"
+              title="تسجيل خروج"
+            >
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M10 4H6.8C5.806 4 5 4.806 5 5.8V18.2C5 19.194 5.806 20 6.8 20H10"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M14 8L19 12L14 16"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M19 12H10"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
           </div>
           <div className={styles.salesHeroTitle}>
-            <h1>👋 مرحباً {profileUser?.full_name ?? "أحمد"}</h1>
+            <h1>مرحباً {profileUser?.full_name ?? "أحمد"}</h1>
             <p>موظف المبيعات</p>
           </div>
 

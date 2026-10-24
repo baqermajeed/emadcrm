@@ -1,7 +1,8 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { getRoleHome } from "@/lib/auth";
 import { login } from "@/lib/api";
 import { storage } from "@/lib/storage";
@@ -12,16 +13,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
-  const demoAccounts = useMemo(
-    () => [
-      "reception / 123456",
-      "sales1 / 123456",
-      "sales2 / 123456",
-      "manager / 123456"
-    ],
-    []
-  );
+  const [rememberMe, setRememberMe] = useState(true);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -41,39 +33,76 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="shell">
-      <section className="panel">
-        <h1 className="title">تسجيل الدخول - Emad CRM</h1>
-        <p className="muted">واجهة ويب موبايل لموظف الاستقبال والمبيعات والمدير.</p>
-        <p className="muted">
-          API: <code>Proxy {"->"} BACKEND_BASE_URL</code>
-        </p>
+    <main className="login-screen">
+      <div className="login-overlay" />
+      <div className="login-floating-glow login-floating-glow-top" />
+      <div className="login-floating-glow login-floating-glow-bottom" />
 
-        <form onSubmit={onSubmit}>
-          {error ? <p className="error">{error}</p> : null}
-          <input
-            className="input"
-            placeholder="اسم المستخدم"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            required
+      <section className="login-shell">
+        <header className="login-brand fade-up">
+          <Image
+            className="login-logo"
+            src="/assets/Premium%20Gold%20and%20Teal%20Real%20Estate%20Emblem.png"
+            alt="شعار عماد السكن"
+            width={94}
+            height={94}
+            priority
           />
-          <input
-            className="input"
-            type="password"
-            placeholder="كلمة المرور"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-          <button className="button" disabled={loading} type="submit">
-            {loading ? "جارِ تسجيل الدخول..." : "دخول"}
-          </button>
-        </form>
+          <h1>عماد السكن</h1>
+          <p>نظام إدارة المبيعات</p>
+        </header>
 
-        <p className="muted" style={{ marginTop: 12 }}>
-          حسابات تجريبية: {demoAccounts.join(" | ")}
-        </p>
+        <article className="login-card fade-up" style={{ animationDelay: "120ms" }}>
+          <h2>مرحبا بعودتك</h2>
+          <p>سجل الدخول للوصول إلى حسابك</p>
+
+          <form onSubmit={onSubmit} className="login-form">
+            {error ? <p className="error">{error}</p> : null}
+
+            <label className="login-field">
+              <span className="login-icon">✉</span>
+              <input
+                className="login-input"
+                placeholder="اسم المستخدم أو البريد الإلكتروني"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+              />
+            </label>
+
+            <label className="login-field">
+              <span className="login-icon">🔒</span>
+              <input
+                className="login-input"
+                type="password"
+                placeholder="كلمة المرور"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </label>
+
+            <div className="login-meta-row">
+              <button type="button" className="login-link-btn">
+                نسيت كلمة المرور؟
+              </button>
+
+              <label className="remember-wrap">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                />
+                <span>تذكرني</span>
+              </label>
+            </div>
+
+            <button className="login-btn-primary" disabled={loading} type="submit">
+              <span>{loading ? "جارِ تسجيل الدخول..." : "تسجيل الدخول"}</span>
+              <b aria-hidden>›</b>
+            </button>
+          </form>
+        </article>
       </section>
     </main>
   );
