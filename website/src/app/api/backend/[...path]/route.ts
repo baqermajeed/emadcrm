@@ -10,7 +10,21 @@ function buildUrl(pathParts: string[], searchParams: URLSearchParams): string {
   return query ? `${base}/${safePath}?${query}` : `${base}/${safePath}`;
 }
 
+function normalizePathParts(pathParts: string[], method: string): string[] {
+  // Backward compatibility: some clients call /users/me for the current profile.
+  if (
+    method === "GET" &&
+    pathParts.length === 2 &&
+    pathParts[0] === "users" &&
+    pathParts[1] === "me"
+  ) {
+    return ["auth", "me"];
+  }
+  return pathParts;
+}
+
 async function proxy(request: NextRequest, pathParts: string[]): Promise<NextResponse> {
+  const resolvedPath = normalizePathParts(pathParts, request.method);
   const headers = new Headers();
   const auth = request.headers.get("authorization");
   if (auth) headers.set("authorization", auth);
@@ -35,7 +49,7 @@ async function proxy(request: NextRequest, pathParts: string[]): Promise<NextRes
   }
 
   try {
-    const response = await fetch(buildUrl(pathParts, request.nextUrl.searchParams), init);
+    const response = await fetch(buildUrl(resolvedPath, request.nextUrl.searchParams), init);
     const body = await response.text();
     return new NextResponse(body, {
       status: response.status,

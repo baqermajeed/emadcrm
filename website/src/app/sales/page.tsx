@@ -157,7 +157,6 @@ export default function SalesPage() {
   const [passwordInput, setPasswordInput] = useState("");
   const [selectedAvatarBlob, setSelectedAvatarBlob] = useState<Blob | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
-  const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
   const [cropSource, setCropSource] = useState<string | null>(null);
   const [cropZoom, setCropZoom] = useState(1);
   const [cropOffsetX, setCropOffsetX] = useState(0);
@@ -185,7 +184,7 @@ export default function SalesPage() {
   });
 
   const rawAvatarSrc = avatarPreview ?? resolveAvatarUrl(profileUser?.avatar_url);
-  const avatarSrc = (avatarLoadFailed ? DEFAULT_EMPLOYEE_AVATAR : rawAvatarSrc) ?? DEFAULT_EMPLOYEE_AVATAR;
+  const avatarSrc = rawAvatarSrc ?? DEFAULT_EMPLOYEE_AVATAR;
 
   useEffect(() => {
     setProfileUser(user);
@@ -288,10 +287,6 @@ export default function SalesPage() {
       if (avatarPreview?.startsWith("blob:")) URL.revokeObjectURL(avatarPreview);
     };
   }, [avatarPreview]);
-
-  useEffect(() => {
-    setAvatarLoadFailed(false);
-  }, [rawAvatarSrc]);
 
   useEffect(() => {
     if (!token) return;
@@ -563,7 +558,12 @@ export default function SalesPage() {
                   <img
                     src={avatarSrc}
                     alt={profileUser?.full_name ?? "صورة الموظف"}
-                    onError={() => setAvatarLoadFailed(true)}
+                    onError={(e) => {
+                      const img = e.currentTarget;
+                      if (!img.src.endsWith(DEFAULT_EMPLOYEE_AVATAR)) {
+                        img.src = DEFAULT_EMPLOYEE_AVATAR;
+                      }
+                    }}
                   />
                 ) : (
                   <span>{(profileUser?.full_name?.slice(0, 1) ?? "S").toUpperCase()}</span>
@@ -683,9 +683,6 @@ export default function SalesPage() {
                       <p className={styles.salesPhone}>{customer.phone}</p>
                       <div className={styles.salesTags}>
                         <span className={`${styles.salesTag} ${styles.status}`}>{statusText}</span>
-                        <span className={`${styles.salesTag} ${styles.villa}`}>
-                          فيلا {customer.booking_id?.slice(-3).toUpperCase() ?? "A12"}
-                        </span>
                       </div>
                     </div>
 
@@ -734,6 +731,8 @@ export default function SalesPage() {
                   ? styles.noteQuickCard
                   : quickAction === "deal"
                     ? styles.dealQuickCard
+                    : quickAction === "status"
+                      ? styles.statusQuickCard
                     : ""
               }`}
             >
@@ -743,6 +742,8 @@ export default function SalesPage() {
                     ? styles.noteQuickTitle
                     : quickAction === "deal"
                       ? styles.dealQuickTitleHidden
+                      : quickAction === "status"
+                        ? styles.statusQuickTitle
                       : ""
                 }
               >
@@ -754,10 +755,10 @@ export default function SalesPage() {
               </h3>
 
               {quickAction === "status" ? (
-                <label className={styles.profileLabel}>
+                <label className={`${styles.profileLabel} ${styles.statusFieldLabel}`}>
                   الحالة
                   <select
-                    className={styles.profileInput}
+                    className={`${styles.profileInput} ${styles.statusSelect}`}
                     value={quickStatus}
                     onChange={(e) => setQuickStatus(e.target.value)}
                   >
@@ -999,6 +1000,8 @@ export default function SalesPage() {
                     ? styles.noteQuickActions
                     : quickAction === "deal"
                       ? styles.dealQuickActions
+                      : quickAction === "status"
+                        ? styles.statusQuickActions
                       : ""
                 }`}
               >
@@ -1044,7 +1047,16 @@ export default function SalesPage() {
               <div className={styles.profileAvatarEditor}>
                 <div className={styles.profileAvatarPreview}>
                   {avatarSrc ? (
-                    <img src={avatarSrc} alt="معاينة صورة الموظف" onError={() => setAvatarLoadFailed(true)} />
+                    <img
+                      src={avatarSrc}
+                      alt="معاينة صورة الموظف"
+                      onError={(e) => {
+                        const img = e.currentTarget;
+                        if (!img.src.endsWith(DEFAULT_EMPLOYEE_AVATAR)) {
+                          img.src = DEFAULT_EMPLOYEE_AVATAR;
+                        }
+                      }}
+                    />
                   ) : (
                     <span>{(profileUser?.full_name?.slice(0, 1) ?? "S").toUpperCase()}</span>
                   )}

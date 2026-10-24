@@ -2,12 +2,14 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { User, UserRole } from "@/types";
 import { storage } from "@/lib/storage";
+import { getCurrentUser } from "@/lib/api";
 
 export function useProtectedPage(allowedRoles?: UserRole[]) {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const allowedRolesKey = allowedRoles?.join("|") ?? "";
 
   useEffect(() => {
     const currentUser = storage.getUser();
@@ -25,8 +27,29 @@ export function useProtectedPage(allowedRoles?: UserRole[]) {
 
     setUser(currentUser);
     setToken(currentToken);
-    setLoading(false);
-  }, [allowedRoles, router]);
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const freshUser = await getCurrentUser(currentToken);
+        if (cancelled) return;
+        if (allowedRoles && !allowedRoles.includes(freshUser.role)) {
+          router.replace(getRoleHome(freshUser.role));
+          return;
+        }
+        storage.setUser(freshUser);
+        setUser(freshUser);
+      } catch {
+        // Keep using cached user if network request fails.
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [allowedRolesKey, router]);
 
   return { user, token, loading };
 }

@@ -59,6 +59,14 @@ export async function login(username: string, password: string): Promise<LoginRe
   });
 }
 
+export async function getCurrentUser(token: string): Promise<User> {
+  return request<User>("auth/me", {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+}
+
 export async function listCustomers(token: string, search = ""): Promise<PaginatedResponse<Customer>> {
   const params = new URLSearchParams({ page_size: "50", sort_dir: "desc" });
   if (search.trim()) params.set("search", search.trim());

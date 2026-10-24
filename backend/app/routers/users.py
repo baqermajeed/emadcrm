@@ -41,6 +41,11 @@ async def list_users(
     )
 
 
+@router.get("/me", response_model=UserOut)
+async def get_current_user_profile(current_user: CurrentUser):
+    return UserOut(**current_user)
+
+
 @router.get("/{user_id}", response_model=UserOut)
 async def get_user(user_id: str, db: Database, _: ManagerDep):
     user = await UserService(db).get_by_id(user_id)
