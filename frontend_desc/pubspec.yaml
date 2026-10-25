@@ -73,9 +73,9 @@ flutter_launcher_icons:
     generate: true
   macos:
     generate: true
-  image_path: "asset/Premium Gold and Teal Real Estate Emblem.png"
+  image_path: "asset/app_icon_square.png"
   adaptive_icon_background: "#000000"
-  adaptive_icon_foreground: "asset/Premium Gold and Teal Real Estate Emblem.png"
+  adaptive_icon_foreground: "asset/app_icon_square.png"
   background_color_ios: "#000000"
 
 # For information on the generic Dart part of this file, see the

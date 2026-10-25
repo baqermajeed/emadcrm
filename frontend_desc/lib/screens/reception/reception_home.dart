@@ -274,10 +274,10 @@ class _ReceptionHomeState extends State<ReceptionHome> {
 
   Widget _homeBody(AuthController auth, BookingController bookings) {
     final all = bookings.items;
+    final rows = _rows(all);
     final total = _summary?.todayBookings ?? 0;
     final done = _summary?.approvedBookings ?? 0;
-    final left = _summary?.pendingBookings ?? 0;
-    final rows = _rows(all);
+    final left = (_summary?.pendingBookings ?? 0) + (_summary?.missedBookings ?? 0);
 
     return Column(
       children: [

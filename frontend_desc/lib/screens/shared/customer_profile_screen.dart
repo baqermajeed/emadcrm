@@ -250,6 +250,9 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
     if (how == HowKnewCenter.buyerReferral) {
       return const Icon(Icons.people_alt_rounded, color: _blue, size: 26);
     }
+    if (how == HowKnewCenter.employeeReferral) {
+      return const Icon(Icons.badge_rounded, color: _blue, size: 26);
+    }
     return const Icon(Icons.campaign_rounded, color: _blue, size: 26);
   }
 

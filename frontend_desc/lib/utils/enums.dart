@@ -6,7 +6,13 @@ enum BookingStatus { pending, approved, cancelled, noShow }
 
 enum VisitType { first, followUp }
 
-enum HowKnewCenter { externalAds, socialMedia, buyerReferral, passingBy }
+enum HowKnewCenter {
+  externalAds,
+  socialMedia,
+  buyerReferral,
+  employeeReferral,
+  passingBy,
+}
 
 enum CustomerGender { male, female }
 
@@ -122,6 +128,7 @@ extension HowKnewX on HowKnewCenter {
         HowKnewCenter.externalAds => 'external_ads',
         HowKnewCenter.socialMedia => 'social_media',
         HowKnewCenter.buyerReferral => 'buyer_referral',
+        HowKnewCenter.employeeReferral => 'employee_referral',
         HowKnewCenter.passingBy => 'passing_by',
       };
 
@@ -129,6 +136,7 @@ extension HowKnewX on HowKnewCenter {
         HowKnewCenter.externalAds => 'إعلانات خارجية',
         HowKnewCenter.socialMedia => 'مواقع التواصل',
         HowKnewCenter.buyerReferral => 'عن طريق مشتري',
+        HowKnewCenter.employeeReferral => 'عن طريق موظف',
         HowKnewCenter.passingBy => 'المرور قرب الشركة',
       };
 
@@ -138,6 +146,7 @@ extension HowKnewX on HowKnewCenter {
       'external_ads' => HowKnewCenter.externalAds,
       'social_media' => HowKnewCenter.socialMedia,
       'buyer_referral' => HowKnewCenter.buyerReferral,
+      'employee_referral' => HowKnewCenter.employeeReferral,
       'passing_by' => HowKnewCenter.passingBy,
       _ => null,
     };

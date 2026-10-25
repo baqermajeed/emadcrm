@@ -199,10 +199,9 @@ class _VisitsLogScreenState extends State<VisitsLogScreen> {
     final allBookings = bookings.items;
     final visits = _confirmedVisits(allBookings);
     final filtered = _filtered(visits);
-
-    final total = _summary?.totalConfirmedVisits ?? visits.length;
-    final todayCount = _summary?.todayConfirmedVisits ?? visits.where(_isTodayVisit).length;
-    final attended = _summary?.totalConfirmedVisits ?? visits.length;
+    final total = bookings.totalCount ?? filtered.length;
+    final todayCount = filtered.where(_isTodayVisit).length;
+    final attended = total;
     final awaitingConfirm =
         _summary?.pendingBookings ?? allBookings.where(_isUpcomingPending).length;
     final missed =

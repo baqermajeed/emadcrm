@@ -6,19 +6,23 @@ import 'package:provider/provider.dart';
 
 import '../../controllers/booking_controller.dart';
 import '../../core/reception_tokens.dart';
+import '../../models/booking.dart';
 import '../../utils/enums.dart';
 import '../../utils/formatters.dart';
 import '../../utils/validators.dart';
 import '../../widgets/reception/reception_assets.dart';
 
 class CreateBookingScreen extends StatefulWidget {
-  const CreateBookingScreen({super.key});
+  const CreateBookingScreen({super.key, this.booking});
 
-  static Future<bool?> show(BuildContext context) {
+  /// When set, the dialog edits an existing booking instead of creating one.
+  final Booking? booking;
+
+  static Future<bool?> show(BuildContext context, {Booking? booking}) {
     return showDialog<bool>(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.55),
-      builder: (_) => const CreateBookingScreen(),
+      builder: (_) => CreateBookingScreen(booking: booking),
     );
   }
 
@@ -51,13 +55,34 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
   ];
 
   final _formKey = GlobalKey<FormState>();
-  final _name = TextEditingController();
-  final _phone = TextEditingController();
-  final _notes = TextEditingController();
+  late final TextEditingController _name;
+  late final TextEditingController _phone;
+  late final TextEditingController _notes;
   String? _governorate;
-  BookingSource _source = BookingSource.whatsapp;
-  DateTime _visitDate = DateTime.now().add(const Duration(days: 1));
+  late BookingSource _source;
+  late DateTime _visitDate;
   bool _saving = false;
+
+  bool get _isEdit => widget.booking != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final b = widget.booking;
+    _name = TextEditingController(text: b?.name ?? '');
+    _phone = TextEditingController(text: b?.phone ?? '');
+    _notes = TextEditingController(text: b?.notes ?? '');
+    _governorate = b?.governorate;
+    _source = b?.source ?? BookingSource.whatsapp;
+    _visitDate =
+        b?.visitDate.toLocal() ?? DateTime.now().add(const Duration(days: 1));
+  }
+
+  List<String> get _governorateOptions {
+    final gov = _governorate;
+    if (gov == null || _governorates.contains(gov)) return _governorates;
+    return [..._governorates, gov];
+  }
 
   @override
   void dispose() {
@@ -126,14 +151,26 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
       return;
     }
     setState(() => _saving = true);
-    final ok = await context.read<BookingController>().create(
-          name: _name.text.trim(),
-          phone: _phone.text.trim(),
-          governorate: _governorate!,
-          source: _source,
-          visitDate: _visitDate,
-          notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
-        );
+    final controller = context.read<BookingController>();
+    final notes = _notes.text.trim().isEmpty ? null : _notes.text.trim();
+    final ok = _isEdit
+        ? await controller.update(
+            bookingId: widget.booking!.id,
+            name: _name.text.trim(),
+            phone: _phone.text.trim(),
+            governorate: _governorate!,
+            source: _source,
+            visitDate: _visitDate,
+            notes: notes,
+          )
+        : await controller.create(
+            name: _name.text.trim(),
+            phone: _phone.text.trim(),
+            governorate: _governorate!,
+            source: _source,
+            visitDate: _visitDate,
+            notes: notes,
+          );
     setState(() => _saving = false);
     if (!mounted) return;
     if (ok) {
@@ -141,7 +178,7 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(context.read<BookingController>().error ?? 'فشل الحفظ'),
+          content: Text(controller.error ?? 'فشل الحفظ'),
         ),
       );
     }
@@ -208,7 +245,10 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _DialogHeader(onClose: () => Navigator.pop(context)),
+                _DialogHeader(
+                  title: _isEdit ? 'تعديل الحجز' : 'إضافة حجز جديد',
+                  onClose: () => Navigator.pop(context),
+                ),
                 Flexible(
                   child: Form(
                     key: _formKey,
@@ -278,7 +318,7 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
                                     fontSize: 13,
                                   ),
                                   dropdownColor: Colors.white,
-                                  items: _governorates
+                                  items: _governorateOptions
                                       .map(
                                         (g) => DropdownMenuItem(
                                           value: g,
@@ -487,7 +527,9 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
                                             ),
                                           )
                                         : Text(
-                                            'حفظ الحجز',
+                                            _isEdit
+                                                ? 'حفظ التعديلات'
+                                                : 'حفظ الحجز',
                                             style: AppFonts.style(
                                               fontSize: 14,
                                               fontWeight: FontWeight.w800,
@@ -541,8 +583,9 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
 }
 
 class _DialogHeader extends StatelessWidget {
-  const _DialogHeader({required this.onClose});
+  const _DialogHeader({required this.title, required this.onClose});
 
+  final String title;
   final VoidCallback onClose;
 
   @override
@@ -553,7 +596,7 @@ class _DialogHeader extends StatelessWidget {
         children: [
           Expanded(
             child: Text(
-              'إضافة حجز جديد',
+              title,
               style: AppFonts.style(
                 fontSize: 16,
                 fontWeight: FontWeight.w800,

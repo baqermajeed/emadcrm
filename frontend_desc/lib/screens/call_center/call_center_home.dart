@@ -182,6 +182,23 @@ class _CallCenterHomeState extends State<CallCenterHome> {
     }
   }
 
+  Future<void> _openEdit(Booking booking) async {
+    if (booking.status != BookingStatus.pending) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('يمكن تعديل الحجوزات التي لم يحضر بعد فقط'),
+        ),
+      );
+      return;
+    }
+    final updated = await CreateBookingScreen.show(context, booking: booking);
+    if (updated == true && mounted) {
+      await _loadBookingsFromFilters();
+      await _loadSummary();
+    }
+  }
+
   Future<void> _loadSummary() async {
     final cache = context.read<CacheService>();
     final cached = _summaryCache.read(cache);
@@ -455,6 +472,7 @@ class _CallCenterHomeState extends State<CallCenterHome> {
                                       rows: items,
                                       onCall: _callPhone,
                                       onWhatsApp: _openWhatsApp,
+                                      onEdit: _openEdit,
                                     ),
                                   ),
                                 ),
@@ -1344,16 +1362,18 @@ class _BookingsTable extends StatelessWidget {
     required this.rows,
     required this.onCall,
     required this.onWhatsApp,
+    required this.onEdit,
   });
 
   final List<Booking> rows;
   final Future<void> Function(String phone) onCall;
   final Future<void> Function(String phone) onWhatsApp;
+  final Future<void> Function(Booking booking) onEdit;
 
   static const _tableText = Color(0xFF123B70);
   static const _colGap = 14.0;
   static const _rowH = 52.0;
-  static const _minW = 1360.0;
+  static const _minW = 1400.0;
   static const _hPad = 24.0;
 
   @override
@@ -1423,7 +1443,7 @@ class _BookingsTable extends StatelessWidget {
         _fixed(120, Text('الحالة', style: style, textAlign: TextAlign.center)),
         _flex(2, Text('موظف الكول سنتر', style: style)),
         _flex(1, Text('ملاحظات', style: style)),
-        _fixed(90, Text('الإجراءات', style: style, textAlign: TextAlign.center)),
+        _fixed(130, Text('الإجراءات', style: style, textAlign: TextAlign.center)),
       ]),
     );
   }
@@ -1575,10 +1595,23 @@ class _BookingsTable extends StatelessWidget {
           ),
         ),
         _fixed(
-          90,
+          130,
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              if (b.status == BookingStatus.pending) ...[
+                _GlassActionBtn(
+                  onTap: () => onEdit(b),
+                  bg: const Color(0xFFFFF7ED),
+                  fg: const Color(0xFFC2410C),
+                  child: const Icon(
+                    Icons.edit_rounded,
+                    size: 16,
+                    color: Color(0xFFC2410C),
+                  ),
+                ),
+                const SizedBox(width: 4),
+              ],
               _GlassActionBtn(
                 onTap: () => onCall(b.phone),
                 bg: const Color(0xFFEFF6FF),

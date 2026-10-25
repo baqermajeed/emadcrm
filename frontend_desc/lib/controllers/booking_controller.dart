@@ -329,6 +329,37 @@ class BookingController extends ChangeNotifier {
     }
   }
 
+  Future<bool> update({
+    required String bookingId,
+    required String name,
+    required String phone,
+    required String governorate,
+    required BookingSource source,
+    required DateTime visitDate,
+    String? notes,
+  }) async {
+    try {
+      final updated = await _service.update(
+        bookingId: bookingId,
+        name: name,
+        phone: phone,
+        governorate: governorate,
+        source: source,
+        visitDate: visitDate,
+        notes: notes,
+      );
+      final index = items.indexWhere((b) => b.id == bookingId);
+      if (index >= 0) items[index] = updated;
+      unawaited(_invalidateCache());
+      notifyListeners();
+      return true;
+    } on ApiException catch (e) {
+      error = e.message;
+      notifyListeners();
+      return false;
+    }
+  }
+
   Future<bool> approve({
     required String bookingId,
     required String salesEmployeeId,

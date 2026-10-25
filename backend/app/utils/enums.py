@@ -33,6 +33,7 @@ class HowKnewCenter(StrEnum):
     EXTERNAL_ADS = "external_ads"
     SOCIAL_MEDIA = "social_media"
     BUYER_REFERRAL = "buyer_referral"
+    EMPLOYEE_REFERRAL = "employee_referral"
     PASSING_BY = "passing_by"
 
 

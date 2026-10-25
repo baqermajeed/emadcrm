@@ -4,7 +4,7 @@ import 'dart:ui' show Size;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:window_manager/window_manager.dart';
 
-/// Opens Windows app maximized and disables restore/resize controls.
+/// Opens Windows app maximized with responsive resize behavior.
 Future<void> setupDesktopWindow() async {
   if (kIsWeb || !Platform.isWindows) return;
 
@@ -18,9 +18,10 @@ Future<void> setupDesktopWindow() async {
   );
 
   await windowManager.waitUntilReadyToShow(options, () async {
-    await windowManager.setResizable(false);
-    await windowManager.setMaximizable(false);
-    await windowManager.setMinimumSize(const Size(1280, 720));
+    // Keep desktop controls available so the UI can adapt to user display.
+    await windowManager.setResizable(true);
+    await windowManager.setMaximizable(true);
+    await windowManager.setMinimumSize(const Size(1024, 640));
     await windowManager.maximize();
     await windowManager.show();
     await windowManager.focus();

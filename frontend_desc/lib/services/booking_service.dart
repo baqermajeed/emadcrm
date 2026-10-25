@@ -81,6 +81,26 @@ class BookingService {
     return Booking.fromJson(data);
   }
 
+  Future<Booking> update({
+    required String bookingId,
+    required String name,
+    required String phone,
+    required String governorate,
+    required BookingSource source,
+    required DateTime visitDate,
+    String? notes,
+  }) async {
+    final data = await _api.patch('/api/bookings/$bookingId', body: {
+      'name': name,
+      'phone': phone,
+      'governorate': governorate,
+      'source': source.api,
+      'visit_date': visitDate.toUtc().toIso8601String(),
+      'notes': notes,
+    }) as Map<String, dynamic>;
+    return Booking.fromJson(data);
+  }
+
   Future<Booking> approve({
     required String bookingId,
     required String salesEmployeeId,

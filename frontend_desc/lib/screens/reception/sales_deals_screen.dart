@@ -400,13 +400,6 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
     }
   }
 
-  Future<void> _openPhone(String phone) async {
-    final uri = Uri(scheme: 'tel', path: phone);
-    try {
-      await launchUrl(uri);
-    } catch (_) {}
-  }
-
   Future<void> _openChat(String phone) async {
     final digits = phone.replaceAll(RegExp(r'[^\d+]'), '');
     var normalized = digits.replaceAll('+', '');
@@ -516,7 +509,6 @@ class _SalesDealsScreenState extends State<SalesDealsScreen> {
                                     houseLabel: _houseLabel,
                                     onOpen: (d) =>
                                         widget.onOpenCustomer?.call(d.customerId),
-                                    onPhone: (d) => _openPhone(d.phone),
                                     onChat: (d) => _openChat(d.phone),
                                     onEdit: _openDeal,
                                   )
@@ -1090,7 +1082,6 @@ class _DealsGrid extends StatelessWidget {
     required this.customerOf,
     required this.houseLabel,
     required this.onOpen,
-    required this.onPhone,
     required this.onChat,
     required this.onEdit,
   });
@@ -1100,7 +1091,6 @@ class _DealsGrid extends StatelessWidget {
   final Customer? Function(Deal) customerOf;
   final String Function(Deal) houseLabel;
   final ValueChanged<Deal> onOpen;
-  final ValueChanged<Deal> onPhone;
   final ValueChanged<Deal> onChat;
   final ValueChanged<Deal> onEdit;
 
@@ -1132,7 +1122,6 @@ class _DealsGrid extends StatelessWidget {
                       callCenterName: customerOf(d)?.callCenterName,
                       callCenterAvatarUrl: customerOf(d)?.callCenterAvatarUrl,
                       onOpen: () => onOpen(d),
-                      onPhone: () => onPhone(d),
                       onChat: () => onChat(d),
                       onEdit: () => onEdit(d),
                     ),
@@ -1213,7 +1202,6 @@ class _DealCard extends StatelessWidget {
     required this.callCenterName,
     this.callCenterAvatarUrl,
     required this.onOpen,
-    required this.onPhone,
     required this.onChat,
     required this.onEdit,
   });
@@ -1223,7 +1211,6 @@ class _DealCard extends StatelessWidget {
   final String? callCenterName;
   final String? callCenterAvatarUrl;
   final VoidCallback onOpen;
-  final VoidCallback onPhone;
   final VoidCallback onChat;
   final VoidCallback onEdit;
 
@@ -1398,8 +1385,6 @@ class _DealCard extends StatelessWidget {
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    _OutlineIconBtn(icon: Icons.phone_outlined, onTap: onPhone),
-                    const SizedBox(width: 6),
                     _OutlineIconBtn(
                       onTap: onChat,
                       child: RAssets.source('whatsapp', size: 16),
@@ -1687,66 +1672,268 @@ class _PickCustomerDialogState extends State<_PickCustomerDialog> {
 
     return Directionality(
       textDirection: ui.TextDirection.rtl,
-      child: AlertDialog(
-        title: Text(
-          'اختر الزبون',
-          style: GoogleFonts.cairo(fontWeight: FontWeight.w800),
-        ),
-        content: SizedBox(
-          width: 420,
-          height: 420,
-          child: Column(
-            children: [
-              TextField(
-                controller: _q,
-                onChanged: (_) => setState(() {}),
-                decoration: InputDecoration(
-                  hintText: 'ابحث عن زبون...',
-                  hintStyle: GoogleFonts.cairo(),
-                  prefixIcon: const Icon(Icons.search),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                style: GoogleFonts.cairo(),
-              ),
-              const SizedBox(height: 12),
-              Expanded(
-                child: list.isEmpty
-                    ? Center(
-                        child: Text(
-                          'لا يوجد زبائن',
-                          style: GoogleFonts.cairo(fontWeight: FontWeight.w700),
-                        ),
-                      )
-                    : ListView.separated(
-                        itemCount: list.length,
-                        separatorBuilder: (_, _) => const Divider(height: 1),
-                        itemBuilder: (context, i) {
-                          final c = list[i];
-                          return ListTile(
-                            onTap: () => Navigator.pop(context, c),
-                            title: Text(
-                              c.name,
-                              style: GoogleFonts.cairo(fontWeight: FontWeight.w800),
-                            ),
-                            subtitle: Text(
-                              c.phone,
-                              style: GoogleFonts.cairo(fontWeight: FontWeight.w600),
-                            ),
-                            trailing: const Icon(Icons.chevron_left),
-                          );
-                        },
-                      ),
+      child: Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        child: Container(
+          width: 500,
+          constraints: const BoxConstraints(maxHeight: 620),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF0A4D78).withValues(alpha: 0.22),
+                blurRadius: 28,
+                offset: const Offset(0, 14),
               ),
             ],
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('إلغاء', style: GoogleFonts.cairo(fontWeight: FontWeight.w700)),
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.fromLTRB(18, 16, 14, 12),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFFF6FBFF), Color(0xFFEEF7FF)],
+                    begin: Alignment.topRight,
+                    end: Alignment.bottomLeft,
+                  ),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'اختر الزبون',
+                            style: GoogleFonts.cairo(
+                              fontSize: 26,
+                              fontWeight: FontWeight.w900,
+                              color: const Color(0xFF0E355E),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'اختيار سريع ودقيق لملف الزبون',
+                            style: GoogleFonts.cairo(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF6A86A4),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE7F2FF),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        '${list.length}',
+                        style: GoogleFonts.cairo(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 13,
+                          color: const Color(0xFF0E5AA8),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: () => Navigator.pop(context),
+                      child: Container(
+                        width: 34,
+                        height: 34,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0xFFDCE8F4)),
+                        ),
+                        child: const Icon(Icons.close_rounded, size: 18, color: Color(0xFF45607D)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+                child: TextField(
+                  controller: _q,
+                  onChanged: (_) => setState(() {}),
+                  style: GoogleFonts.cairo(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    color: const Color(0xFF173B5F),
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'ابحث بالاسم أو رقم الهاتف...',
+                    hintStyle: GoogleFonts.cairo(
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF8AA0B6),
+                    ),
+                    prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF3D6EA2)),
+                    filled: true,
+                    fillColor: const Color(0xFFF8FBFF),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(color: Color(0xFFD8E5F2)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(color: Color(0xFFD8E5F2)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(color: Color(0xFF2C7DD0), width: 1.4),
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+                  child: list.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 56,
+                                height: 56,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFEAF3FD),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: const Icon(
+                                  Icons.person_search_rounded,
+                                  size: 28,
+                                  color: Color(0xFF5E84AE),
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                'لا يوجد زبائن مطابقين',
+                                style: GoogleFonts.cairo(
+                                  fontWeight: FontWeight.w800,
+                                  color: const Color(0xFF4D6C8B),
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      : ListView.separated(
+                          itemCount: list.length,
+                          padding: const EdgeInsets.only(bottom: 8),
+                          separatorBuilder: (_, _) => const SizedBox(height: 8),
+                          itemBuilder: (context, i) {
+                            final c = list[i];
+                            return Material(
+                              color: const Color(0xFFF9FCFF),
+                              borderRadius: BorderRadius.circular(14),
+                              child: InkWell(
+                                onTap: () => Navigator.pop(context, c),
+                                borderRadius: BorderRadius.circular(14),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: 38,
+                                        height: 38,
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(11),
+                                          gradient: const LinearGradient(
+                                            colors: [Color(0xFF2792D3), Color(0xFF1A66B0)],
+                                            begin: Alignment.topRight,
+                                            end: Alignment.bottomLeft,
+                                          ),
+                                        ),
+                                        alignment: Alignment.center,
+                                        child: Text(
+                                          _initials(c.name),
+                                          style: GoogleFonts.cairo(
+                                            fontWeight: FontWeight.w900,
+                                            color: Colors.white,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              c.name,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: GoogleFonts.cairo(
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w800,
+                                                color: const Color(0xFF163B61),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              c.phone,
+                                              style: GoogleFonts.cairo(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w700,
+                                                color: const Color(0xFF6C87A0),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      const RotatedBox(
+                                        quarterTurns: 2,
+                                        child: Icon(
+                                          Icons.chevron_left_rounded,
+                                          color: Color(0xFF5A7DA4),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(
+                    'إلغاء',
+                    style: GoogleFonts.cairo(
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF45617A),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+            ],
           ),
-        ],
+        ),
       ),
     );
+  }
+
+  String _initials(String name) {
+    final parts = name.trim().split(RegExp(r'\s+')).where((e) => e.isNotEmpty).toList();
+    if (parts.isEmpty) return '؟';
+    if (parts.length == 1) return parts.first[0].toUpperCase();
+    return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
   }
 }
