@@ -53,6 +53,7 @@ class CustomerController extends ChangeNotifier {
   DateTime? _activeFromDate;
   DateTime? _activeToDate;
   String _activeSortDir = 'desc';
+  int _profileRequestId = 0;
 
   Future<void> load({
     String? search,
@@ -299,20 +300,45 @@ class CustomerController extends ChangeNotifier {
   }
 
   Future<void> openProfile(String id) async {
+    final requestId = ++_profileRequestId;
     loading = true;
     error = null;
+    // Clear previous profile immediately so the UI never shows stale customer data.
+    selected = null;
+    visits = [];
+    deals = [];
+    reservations = [];
     notifyListeners();
     try {
-      selected = await _customers.get(id);
-      visits = await _visits.byCustomer(id);
-      deals = await _deals.list(customerId: id);
-      reservations = await _reservations.list(customerId: id);
+      final customer = await _customers.get(id);
+      final customerVisits = await _visits.byCustomer(id);
+      final customerDeals = await _deals.list(customerId: id);
+      final customerReservations = await _reservations.list(customerId: id);
+      if (requestId != _profileRequestId) return;
+      selected = customer;
+      visits = customerVisits;
+      deals = customerDeals;
+      reservations = customerReservations;
     } on ApiException catch (e) {
+      if (requestId != _profileRequestId) return;
       error = e.message;
     } catch (_) {
+      if (requestId != _profileRequestId) return;
       error = 'فشل تحميل الملف';
     }
+    if (requestId != _profileRequestId) return;
     loading = false;
+    notifyListeners();
+  }
+
+  void clearProfile() {
+    _profileRequestId++;
+    selected = null;
+    visits = [];
+    deals = [];
+    reservations = [];
+    loading = false;
+    error = null;
     notifyListeners();
   }
 

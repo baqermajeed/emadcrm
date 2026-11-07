@@ -259,13 +259,14 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final ctrl = context.watch<CustomerController>();
-    final c = ctrl.selected;
+    final selected = ctrl.selected;
+    final c = (selected != null && selected.id == widget.customerId) ? selected : null;
 
-    final body = ctrl.loading && c == null
-        ? const Center(child: CircularProgressIndicator(color: ReceptionTokens.teal))
-        : c == null
-            ? Center(child: Text(ctrl.error ?? 'تعذر التحميل', style: GoogleFonts.cairo()))
-            : SingleChildScrollView(
+    final body = c == null
+        ? (ctrl.loading || ctrl.error == null
+            ? const Center(child: CircularProgressIndicator(color: ReceptionTokens.teal))
+            : Center(child: Text(ctrl.error ?? 'تعذر التحميل', style: GoogleFonts.cairo())))
+        : SingleChildScrollView(
                 controller: _scroll,
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
                 child: Column(

@@ -62,6 +62,7 @@ class _ReceptionHomeState extends State<ReceptionHome> {
   }
 
   void _closeCustomerProfile() {
+    context.read<CustomerController>().clearProfile();
     setState(() {
       _profileCustomerId = null;
     });
@@ -94,10 +95,14 @@ class _ReceptionHomeState extends State<ReceptionHome> {
 
   void _onSidebarSelect(int i) {
     final wasHome = _nav == 0;
+    final closingProfile = _profileCustomerId != null && i != 1;
     setState(() {
       _nav = i;
       if (i != 1) _profileCustomerId = null;
     });
+    if (closingProfile) {
+      context.read<CustomerController>().clearProfile();
+    }
     if (i == 0 && !wasHome) {
       unawaited(_restoreHomeDataset());
     }
