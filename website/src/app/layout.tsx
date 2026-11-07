@@ -40,8 +40,12 @@ const lamaSans = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Emad CRM Web",
-  description: "Mobile-first CRM for reception, sales, and manager"
+  title: "نظام ادارة مبيعات عماد سكر",
+  description: "نظام ادارة مبيعات عماد سكر",
+  icons: {
+    icon: "/assets/Premium%20Gold%20and%20Teal%20Real%20Estate%20Emblem.png",
+    apple: "/assets/Premium%20Gold%20and%20Teal%20Real%20Estate%20Emblem.png"
+  }
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

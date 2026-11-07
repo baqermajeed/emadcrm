@@ -1,0 +1,494 @@
+.page {
+  min-height: 100vh;
+  background: #eaf1fb;
+  overflow-x: hidden;
+}
+
+.mobileFrame {
+  width: 100%;
+  max-width: 430px;
+  min-height: 100vh;
+  margin: 0 auto;
+  background: #eaf1fb;
+  position: relative;
+  overflow-x: hidden;
+}
+
+.loading {
+  max-width: 430px;
+  margin: 20px auto;
+  border: 1px solid #d9e5f7;
+  border-radius: 16px;
+  padding: 16px;
+  background: #fff;
+  text-align: center;
+}
+
+.hero {
+  padding: 14px 14px 96px;
+  color: #fff;
+  background:
+    linear-gradient(160deg, rgba(6, 36, 74, 0.15) 0%, rgba(5, 33, 68, 0.92) 72%),
+    url("/assets/backgrondprofile.png");
+  background-size: cover;
+  background-position: center;
+  border-bottom-left-radius: 34px;
+  border-bottom-right-radius: 34px;
+  position: relative;
+  overflow: visible;
+}
+
+.heroOverlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(4, 41, 81, 0.48) 18%, rgba(11, 45, 92, 0.84) 78%);
+  border-bottom-left-radius: 34px;
+  border-bottom-right-radius: 34px;
+}
+
+.heroTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 58px;
+  position: relative;
+  z-index: 2;
+}
+
+.heroActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.84);
+  background: linear-gradient(145deg, #d7e4f6, #91a8c8);
+  color: #133865;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar span {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+.editProfileBtn {
+  height: 34px;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  padding: 0 10px;
+  font-size: 0.79rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.brand {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+  display: grid;
+  justify-items: center;
+}
+
+.brand img {
+  width: 54px;
+  height: 54px;
+  object-fit: contain;
+}
+
+.brand strong {
+  margin-top: 3px;
+  font-size: 0.95rem;
+}
+
+.brand small {
+  font-size: 0.72rem;
+  opacity: 0.92;
+}
+
+.logoutIconBtn {
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(255, 96, 113, 0.24);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.logoutIconBtn svg {
+  width: 20px;
+  height: 20px;
+  transform: rotate(180deg);
+}
+
+.heroTitle {
+  margin-top: 16px;
+  text-align: right;
+  transform: translateY(10px);
+  position: relative;
+  z-index: 2;
+}
+
+.heroTitle h1 {
+  margin: 0;
+  font-size: 1.48rem;
+  line-height: 1.1;
+  font-weight: 800;
+}
+
+.heroTitle p {
+  margin: 10px 0 0;
+  color: rgba(248, 251, 255, 0.9);
+  font-size: 1.02rem;
+}
+
+.stats {
+  position: absolute;
+  inset: auto 12px -34px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  z-index: 3;
+}
+
+.statCard {
+  background: #fff;
+  border: 1px solid #e2ebf8;
+  border-radius: 14px;
+  box-shadow: 0 8px 14px rgba(28, 55, 95, 0.12);
+  text-align: center;
+  padding: 8px 4px 7px;
+}
+
+.statIcon {
+  display: block;
+  font-size: 1rem;
+}
+
+.statCard strong {
+  display: block;
+  color: #123256;
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.statCard small {
+  display: block;
+  margin-top: 4px;
+  color: #52647f;
+  font-size: 0.77rem;
+}
+
+.body {
+  padding: 48px 10px 70px;
+  overflow-x: hidden;
+}
+
+.tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.tabs button {
+  border: 0;
+  border-radius: 12px;
+  height: 38px;
+  background: #eff3fb;
+  color: #344966;
+  font-weight: 700;
+}
+
+.tabActive {
+  background: #1b62d3 !important;
+  color: #fff !important;
+}
+
+.searchRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  margin-bottom: 8px;
+  min-width: 0;
+}
+
+.searchRow input {
+  border: 1px solid #dee8f7;
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #fff;
+  min-width: 0;
+}
+
+.searchRow button {
+  border: 0;
+  border-radius: 12px;
+  background: #1b62d3;
+  color: #fff;
+  min-width: 70px;
+  font-weight: 700;
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 8px;
+  min-width: 0;
+}
+
+.filters select,
+.filters input {
+  border: 1px solid #d7e3f5;
+  border-radius: 10px;
+  background: #fff;
+  padding: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.dateField {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #d7e3f5;
+  border-radius: 10px;
+  background: #fff;
+  padding: 8px 10px;
+  min-width: 0;
+}
+
+.dateCaption {
+  color: #3f5676;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.dateField input {
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.filters button {
+  grid-column: 1 / -1;
+  border: 1px solid #cfe0f8;
+  border-radius: 10px;
+  background: #f4f8ff;
+  color: #2d5689;
+  padding: 8px 10px;
+}
+
+.list {
+  display: grid;
+  gap: 9px;
+}
+
+.card {
+  background: #fff;
+  border: 1px solid #dce7f8;
+  border-radius: 16px;
+  padding: 10px;
+  box-shadow: 0 7px 16px rgba(24, 55, 96, 0.09);
+}
+
+.cardHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+.cardHead h3 {
+  margin: 0;
+  color: #132e4f;
+  font-size: 1rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cardHead span {
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.statusBadge {
+  flex-shrink: 0;
+}
+
+.statusApproved {
+  background: #ebf6ef;
+  color: #15803d;
+}
+
+.statusPending {
+  background: #fff7d6;
+  color: #b45309;
+}
+
+.statusMissed {
+  background: #ffe9ea;
+  color: #b91c1c;
+}
+
+.card p {
+  margin: 5px 0 0;
+  color: #314a68;
+  font-size: 0.86rem;
+}
+
+.actions {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #eaf0f8;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  min-width: 0;
+}
+
+.actions button {
+  border: 0;
+  border-radius: 10px;
+  background: #eef4ff;
+  color: #2454a0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 8px 4px;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.muted {
+  color: #5e7290;
+  margin: 8px 4px;
+}
+
+.error {
+  background: #ffe9ea;
+  border: 1px solid #ffc7cb;
+  color: #8a1b28;
+  border-radius: 10px;
+  padding: 10px;
+  margin: 8px 0;
+  font-size: 0.92rem;
+}
+
+.fab {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 14px;
+  width: min(92vw, 390px);
+  height: 46px;
+  border: 0;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #2b79e9, #1a5ecf);
+  color: #fff;
+  font-weight: 800;
+  box-shadow: 0 8px 18px rgba(29, 96, 201, 0.33);
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 18, 38, 0.62);
+  backdrop-filter: blur(5px);
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 14px;
+}
+
+.modalCard {
+  width: min(100%, 420px);
+  background: #fff;
+  border-radius: 16px;
+  padding: 14px;
+  box-shadow: 0 18px 42px rgba(13, 39, 79, 0.28);
+  display: grid;
+  gap: 8px;
+}
+
+.modalCard h3 {
+  margin: 0 0 4px;
+  color: #143055;
+}
+
+.modalCard label {
+  display: grid;
+  gap: 4px;
+  font-size: 0.86rem;
+  color: #355374;
+  font-weight: 700;
+}
+
+.modalCard input,
+.modalCard select,
+.modalCard textarea {
+  border: 1px solid #cfe0f9;
+  border-radius: 12px;
+  padding: 9px 11px;
+  color: #16395e;
+}
+
+.inlineFields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.modalActions {
+  margin-top: 6px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.modalActions button {
+  border: 0;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.modalActions button:first-child {
+  background: #edf3ff;
+  color: #365277;
+}
+
+.modalActions button:last-child {
+  background: linear-gradient(145deg, #2b79e9, #1a5ecf);
+  color: #fff;
+}

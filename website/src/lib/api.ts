@@ -1,14 +1,21 @@
 import type {
+  Booking,
+  BookingSource,
+  BookingStatus,
   Customer,
   CustomerSalesNote,
   Deal,
+  LiveSummary,
   LoginResponse,
   PaginatedResponse,
   User,
   Visit
 } from "@/types";
+import { storage } from "@/lib/storage";
 
 const baseURL = "/api/backend";
+export const AUTH_SESSION_EXPIRED_EVENT = "auth:session-expired";
+let refreshTokenPromise: Promise<string | null> | null = null;
 
 function withPath(path: string): string {
   const trimmedBase = baseURL.replace(/\/+$/, "");
@@ -26,27 +33,153 @@ export class ApiRequestError extends Error {
   }
 }
 
+function stringifyApiDetail(detail: unknown, fallbackMessage: string): string {
+  if (typeof detail === "string" && detail.trim()) return detail;
+  if (typeof detail === "number" || typeof detail === "boolean") return String(detail);
+
+  if (Array.isArray(detail)) {
+    const messages = detail
+      .map((item) => {
+        if (typeof item === "string" && item.trim()) return item;
+        if (item && typeof item === "object") {
+          const record = item as Record<string, unknown>;
+          const msg = record.msg ?? record.message ?? record.detail;
+          return typeof msg === "string" && msg.trim() ? msg : null;
+        }
+        return null;
+      })
+      .filter((value): value is string => Boolean(value));
+    if (messages.length) return messages.join(" - ");
+  }
+
+  if (detail && typeof detail === "object") {
+    const record = detail as Record<string, unknown>;
+    const direct =
+      record.detail ??
+      record.message ??
+      record.msg ??
+      record.error ??
+      record.non_field_errors;
+    const normalizedDirect = stringifyApiDetail(direct, "");
+    if (normalizedDirect) return normalizedDirect;
+
+    const entries = Object.entries(record)
+      .map(([key, value]) => {
+        const normalized = stringifyApiDetail(value, "");
+        return normalized ? `${key}: ${normalized}` : null;
+      })
+      .filter((value): value is string => Boolean(value));
+    if (entries.length) return entries.join(" - ");
+  }
+
+  return fallbackMessage;
+}
+
 async function parseApiError(response: Response): Promise<ApiRequestError> {
   const fallbackMessage = `Request failed with status ${response.status}`;
   try {
-    const body = (await response.json()) as { detail?: string };
-    return new ApiRequestError(body.detail || fallbackMessage, response.status);
+    const body = (await response.json()) as { detail?: unknown; message?: unknown; error?: unknown };
+    const message = stringifyApiDetail(body.detail ?? body.message ?? body.error, fallbackMessage);
+    return new ApiRequestError(message, response.status);
   } catch {
     return new ApiRequestError(fallbackMessage, response.status);
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(withPath(path), {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {})
+function getAuthorization(headers?: HeadersInit): string | null {
+  const normalized = new Headers(headers);
+  const value = normalized.get("authorization");
+  return value && value.trim() ? value.trim() : null;
+}
+
+function shouldSkipRefresh(path: string): boolean {
+  const normalizedPath = path.replace(/^\/+/, "").toLowerCase();
+  return normalizedPath === "auth/login" || normalizedPath === "auth/refresh";
+}
+
+function emitSessionExpired(): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(AUTH_SESSION_EXPIRED_EVENT));
+}
+
+async function refreshAccessToken(): Promise<string | null> {
+  if (refreshTokenPromise) return refreshTokenPromise;
+
+  refreshTokenPromise = (async () => {
+    const response = await fetch(withPath("auth/refresh"), {
+      method: "POST",
+      credentials: "include",
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json"
+      }
+    });
+
+    if (!response.ok) {
+      throw await parseApiError(response);
     }
+
+    const payload = (await response.json()) as Partial<LoginResponse> & {
+      token?: string;
+    };
+    const refreshedToken =
+      (typeof payload.access_token === "string" && payload.access_token.trim()
+        ? payload.access_token.trim()
+        : null) ??
+      (typeof payload.token === "string" && payload.token.trim() ? payload.token.trim() : null);
+
+    if (!refreshedToken) {
+      throw new ApiRequestError("Refresh token response did not include access token.", 500);
+    }
+
+    storage.setToken(refreshedToken);
+    if (payload.user) storage.setUser(payload.user);
+    return refreshedToken;
+  })().finally(() => {
+    refreshTokenPromise = null;
   });
 
+  return refreshTokenPromise;
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const initialHeaders = new Headers(init?.headers ?? {});
+  if (!(init?.body instanceof FormData) && !initialHeaders.has("Content-Type")) {
+    initialHeaders.set("Content-Type", "application/json");
+  }
+
+  const doFetch = async (headers: Headers): Promise<Response> =>
+    fetch(withPath(path), {
+      ...init,
+      credentials: "include",
+      headers
+    });
+
+  let response = await doFetch(initialHeaders);
+
+  if (response.status === 401 && !shouldSkipRefresh(path)) {
+    const authHeader = getAuthorization(initialHeaders);
+    if (authHeader?.toLowerCase().startsWith("bearer ")) {
+      try {
+        const refreshedToken = await refreshAccessToken();
+        if (refreshedToken) {
+          const retryHeaders = new Headers(initialHeaders);
+          retryHeaders.set("Authorization", `Bearer ${refreshedToken}`);
+          response = await doFetch(retryHeaders);
+        }
+      } catch {
+        emitSessionExpired();
+      }
+    }
+  }
+
   if (!response.ok) {
-    throw await parseApiError(response);
+    const apiError = await parseApiError(response);
+    if (response.status === 401) {
+      emitSessionExpired();
+    }
+    throw apiError;
   }
 
   return (await response.json()) as T;
@@ -72,6 +205,78 @@ export async function listCustomers(token: string, search = ""): Promise<Paginat
   if (search.trim()) params.set("search", search.trim());
 
   return request<PaginatedResponse<Customer>>(`customers?${params.toString()}`, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+}
+
+export interface ListBookingsParams {
+  search?: string;
+  status?: BookingStatus;
+  fromDate?: string;
+  toDate?: string;
+  page?: number;
+  pageSize?: number;
+  sortDir?: "asc" | "desc";
+}
+
+export async function listBookings(
+  token: string,
+  params: ListBookingsParams = {}
+): Promise<PaginatedResponse<Booking>> {
+  const query = new URLSearchParams({
+    page: String(params.page ?? 1),
+    page_size: String(params.pageSize ?? 50),
+    sort_dir: params.sortDir ?? "desc"
+  });
+  if (params.search?.trim()) query.set("search", params.search.trim());
+  if (params.status) query.set("status", params.status);
+  if (params.fromDate) query.set("from_date", params.fromDate);
+  if (params.toDate) query.set("to_date", params.toDate);
+
+  return request<PaginatedResponse<Booking>>(`bookings?${query.toString()}`, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+}
+
+export interface UpsertBookingPayload {
+  name: string;
+  phone: string;
+  governorate: string;
+  source: BookingSource;
+  visit_date: string;
+  notes?: string | null;
+}
+
+export async function createBooking(token: string, payload: UpsertBookingPayload): Promise<Booking> {
+  return request<Booking>("bookings", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function updateBooking(
+  token: string,
+  bookingId: string,
+  payload: UpsertBookingPayload
+): Promise<Booking> {
+  return request<Booking>(`bookings/${bookingId}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function getLiveSummary(token: string): Promise<LiveSummary> {
+  return request<LiveSummary>("reports/live-summary", {
     headers: {
       Authorization: `Bearer ${token}`
     }
@@ -145,6 +350,31 @@ export interface CreateDealPayload {
 export async function createDeal(token: string, payload: CreateDealPayload): Promise<void> {
   await request("deals", {
     method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify(payload)
+  });
+}
+
+export interface UpdateDealPayload {
+  name?: string;
+  phone?: string;
+  profession?: string | null;
+  email?: string | null;
+  house_type?: "house" | "villa";
+  payment_type?: "cash" | "half_cash" | "installments";
+  total_price?: number;
+  down_payment?: number;
+  house_area?: number | null;
+  residential_block?: string | null;
+  house_number?: string | null;
+  notes?: string | null;
+}
+
+export async function updateDeal(token: string, dealId: string, payload: UpdateDealPayload): Promise<void> {
+  await request(`deals/${dealId}`, {
+    method: "PATCH",
     headers: {
       Authorization: `Bearer ${token}`
     },

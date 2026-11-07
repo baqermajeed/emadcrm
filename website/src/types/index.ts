@@ -106,3 +106,43 @@ export interface CustomerSalesNote {
   sales_employee_name: string | null;
   sales_employee_avatar_url: string | null;
 }
+
+export type BookingSource =
+  | "whatsapp"
+  | "instagram"
+  | "facebook"
+  | "tiktok"
+  | "phone"
+  | "external_ad";
+
+export type BookingStatus = "pending" | "approved" | "cancelled" | "no_show";
+
+export interface Booking {
+  id: string;
+  name: string;
+  phone: string;
+  governorate: string;
+  source: BookingSource;
+  visit_date: string;
+  status: BookingStatus;
+  call_center_id: string;
+  notes: string | null;
+  call_center_name: string | null;
+  call_center_avatar_url: string | null;
+  customer_id: string | null;
+  approved_at: string | null;
+  created_at: string;
+}
+
+export interface LiveSummary {
+  total_bookings: number;
+  pending_bookings: number;
+  approved_bookings: number;
+  missed_bookings: number;
+  today_bookings: number;
+  total_confirmed_visits: number;
+  today_confirmed_visits: number;
+  total_customers: number;
+  total_deals: number;
+  active_reservations: number;
+}

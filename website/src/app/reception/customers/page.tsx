@@ -18,13 +18,14 @@ export default function ReceptionCustomersPage() {
 
   useEffect(() => {
     if (!token) return;
+    const accessToken = token;
     let active = true;
 
     async function load() {
       setFetching(true);
       setError("");
       try {
-        const data = await listCustomers(token, query);
+        const data = await listCustomers(accessToken, query);
         if (active) setCustomers(data.items);
       } catch (err) {
         if (active) setError(err instanceof Error ? err.message : "فشل تحميل الزبائن");

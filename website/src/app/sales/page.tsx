@@ -8,6 +8,7 @@ import {
   listCustomerDeals,
   listCustomerSalesNotes,
   listCustomers,
+  updateDeal,
   updateCustomer,
   updateUserProfile,
   uploadUserAvatar
@@ -106,6 +107,35 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+function coerceInputText(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return "";
+}
+
+function optionalText(value: unknown): string | undefined {
+  const normalized = coerceInputText(value).trim();
+  return normalized ? normalized : undefined;
+}
+
+function normalizeUnknownError(error: unknown, fallback: string): string {
+  if (typeof error === "string" && error.trim()) return error;
+  if (error instanceof Error) {
+    const message = error.message?.trim();
+    return message && message !== "[object Object]" ? message : fallback;
+  }
+  if (error && typeof error === "object") {
+    const record = error as Record<string, unknown>;
+    const messageCandidates = [record.detail, record.message, record.error, record.msg];
+    for (const candidate of messageCandidates) {
+      const normalized = optionalText(candidate);
+      if (normalized) return normalized;
+    }
+  }
+  return fallback;
+}
+
 async function buildCroppedAvatar(
   imageSrc: string,
   zoom: number,
@@ -187,7 +217,8 @@ export default function SalesPage() {
   const [salesNotes, setSalesNotes] = useState<CustomerSalesNote[]>([]);
   const [customerDeals, setCustomerDeals] = useState<Deal[]>([]);
   const [dealLoading, setDealLoading] = useState(false);
-  const [dealMode, setDealMode] = useState<"create" | "view">("create");
+  const [dealMode, setDealMode] = useState<"create" | "view" | "edit">("create");
+  const [editingDealId, setEditingDealId] = useState<string | null>(null);
   const [quickError, setQuickError] = useState("");
   const [dealForm, setDealForm] = useState({
     houseType: "house",
@@ -312,13 +343,14 @@ export default function SalesPage() {
 
   useEffect(() => {
     if (!token) return;
+    const accessToken = token;
     let active = true;
 
     async function load() {
       setLoadingCustomers(true);
       setError("");
       try {
-        const data = await listCustomers(token);
+        const data = await listCustomers(accessToken);
         if (active) setCustomers(data.items);
       } catch (err) {
         if (active) {
@@ -431,6 +463,45 @@ export default function SalesPage() {
     router.replace("/");
   }
 
+  function resetDateFilters() {
+    setFromDate("");
+    setToDate("");
+  }
+
+  function resetDealForm() {
+    setDealForm({
+      houseType: "house",
+      paymentType: "cash",
+      totalPrice: "",
+      downPayment: "",
+      houseArea: "",
+      block: "",
+      houseNumber: "",
+      notes: ""
+    });
+  }
+
+  function fillDealFormFromDeal(deal: Deal) {
+    setDealForm({
+      houseType: deal.house_type,
+      paymentType: deal.payment_type,
+      totalPrice: coerceInputText(deal.total_price),
+      downPayment: coerceInputText(deal.down_payment),
+      houseArea: deal.house_area === null ? "" : coerceInputText(deal.house_area),
+      block: coerceInputText(deal.residential_block),
+      houseNumber: coerceInputText(deal.house_number),
+      notes: coerceInputText(deal.notes)
+    });
+  }
+
+  function startDealEdit() {
+    const selectedDeal = customerDeals[0];
+    if (!selectedDeal) return;
+    setEditingDealId(selectedDeal.id);
+    fillDealFormFromDeal(selectedDeal);
+    setDealMode("edit");
+  }
+
   async function openQuickAction(customer: Customer, action: "status" | "note" | "deal") {
     setActiveCustomer(customer);
     setQuickAction(action);
@@ -440,6 +511,8 @@ export default function SalesPage() {
     setSalesNotes([]);
     setCustomerDeals([]);
     setDealMode("create");
+    setEditingDealId(null);
+    resetDealForm();
     if (action === "note" && token) {
       setNoteLoading(true);
       try {
@@ -474,6 +547,8 @@ export default function SalesPage() {
     setSalesNotes([]);
     setCustomerDeals([]);
     setDealMode("create");
+    setEditingDealId(null);
+    resetDealForm();
   }
 
   async function submitStatus() {
@@ -509,6 +584,9 @@ export default function SalesPage() {
 
   async function submitDeal() {
     if (!token || !activeCustomer) return;
+    const normalizedBlock = coerceInputText(dealForm.block).trim();
+    const normalizedHouseNumber = coerceInputText(dealForm.houseNumber).trim();
+    const normalizedNotes = coerceInputText(dealForm.notes).trim();
     const totalPrice = Number(dealForm.totalPrice);
     const downPayment = Number(dealForm.downPayment);
     const houseArea = dealForm.houseArea.trim() ? Number(dealForm.houseArea) : null;
@@ -528,38 +606,54 @@ export default function SalesPage() {
     setQuickSaving(true);
     setQuickError("");
     try {
-      await createDeal(token, {
-        customer_id: activeCustomer.id,
-        name: activeCustomer.name,
-        profession: activeCustomer.profession,
-        email: activeCustomer.email,
-        phone: activeCustomer.phone,
-        house_type: dealForm.houseType as "house" | "villa",
-        total_price: totalPrice,
-        payment_type: dealForm.paymentType as "cash" | "half_cash" | "installments",
-        down_payment: downPayment,
-        house_area: houseArea,
-        residential_block: dealForm.block.trim() || null,
-        house_number: dealForm.houseNumber.trim() || null,
-        notes: dealForm.notes.trim() || null
-      });
-      await updateCustomer(token, activeCustomer.id, { status: "buyer" });
+      const profession = optionalText(activeCustomer.profession);
+      const email = optionalText(activeCustomer.email);
+      if (dealMode === "edit" && editingDealId) {
+        await updateDeal(token, editingDealId, {
+          name: activeCustomer.name,
+          profession,
+          email,
+          phone: activeCustomer.phone,
+          house_type: dealForm.houseType as "house" | "villa",
+          total_price: totalPrice,
+          payment_type: dealForm.paymentType as "cash" | "half_cash" | "installments",
+          down_payment: downPayment,
+          house_area: houseArea,
+          residential_block: normalizedBlock || null,
+          house_number: normalizedHouseNumber || null,
+          notes: normalizedNotes || null
+        });
+      } else {
+        await createDeal(token, {
+          customer_id: activeCustomer.id,
+          name: activeCustomer.name,
+          profession,
+          email,
+          phone: activeCustomer.phone,
+          house_type: dealForm.houseType as "house" | "villa",
+          total_price: totalPrice,
+          payment_type: dealForm.paymentType as "cash" | "half_cash" | "installments",
+          down_payment: downPayment,
+          house_area: houseArea,
+          residential_block: normalizedBlock || null,
+          house_number: normalizedHouseNumber || null,
+          notes: normalizedNotes || null
+        });
+        await updateCustomer(token, activeCustomer.id, { status: "buyer" });
+      }
       const deals = await listCustomerDeals(token, activeCustomer.id);
       setCustomerDeals(deals);
       setDealMode("view");
+      setEditingDealId(null);
       await reloadCustomers();
-      setDealForm({
-        houseType: "house",
-        paymentType: "cash",
-        totalPrice: "",
-        downPayment: "",
-        houseArea: "",
-        block: "",
-        houseNumber: "",
-        notes: ""
-      });
+      resetDealForm();
     } catch (err) {
-      setQuickError(err instanceof Error ? err.message : "تعذر إضافة الصفقة");
+      setQuickError(
+        normalizeUnknownError(
+          err,
+          dealMode === "edit" ? "تعذر تعديل الصفقة" : "تعذر إضافة الصفقة"
+        )
+      );
     } finally {
       setQuickSaving(false);
     }
@@ -599,10 +693,10 @@ export default function SalesPage() {
               <img
                 className={styles.salesLogo}
                 src="/assets/Premium Gold and Teal Real Estate Emblem.png"
-                alt="لوكو عماد سكر"
+                alt="لوكو نظام ادارة مبيعات عماد سكر"
               />
               <strong>عماد سكر</strong>
-              <small>نظام ادراة مبيعات المجمع</small>
+              <small>نظام ادارة مبيعات عماد سكر</small>
             </div>
             <button
               className={styles.logoutIconBtn}
@@ -676,6 +770,19 @@ export default function SalesPage() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
+          </div>
+          <div className={styles.dateFiltersToolbar}>
+            <button
+              type="button"
+              className={styles.resetDateBtn}
+              onClick={resetDateFilters}
+              disabled={!fromDate && !toDate}
+              aria-label="إعادة تعيين فلترة التاريخ"
+              title="إعادة تعيين فلترة التاريخ"
+            >
+              <span aria-hidden="true">↺</span>
+              إعادة تعيين التاريخ
+            </button>
           </div>
 
           <div className={styles.salesPills}>
@@ -789,6 +896,17 @@ export default function SalesPage() {
                     : ""
               }`}
             >
+              {quickAction !== "deal" ? (
+                <button
+                  type="button"
+                  className={styles.quickCloseBtn}
+                  onClick={closeQuickAction}
+                  aria-label="إغلاق النافذة"
+                  title="إغلاق"
+                >
+                  ×
+                </button>
+              ) : null}
               <h3
                 className={
                   quickAction === "note"
@@ -849,6 +967,15 @@ export default function SalesPage() {
                     <span className={styles.noteComposerHint}>
                       كل ملاحظة تحفظ تلقائيا في سجل متابعة الزبون.
                     </span>
+                    <div className={`${styles.profileActions} ${styles.noteQuickActions} ${styles.noteComposerActions}`}>
+                      <button
+                        type="button"
+                        disabled={quickSaving || !quickNote.trim()}
+                        onClick={submitNote}
+                      >
+                        {quickSaving ? "جارِ الحفظ..." : "حفظ"}
+                      </button>
+                    </div>
                   </label>
 
                   <div className={styles.noteTimelinePanel}>
@@ -883,8 +1010,16 @@ export default function SalesPage() {
                       ×
                     </button>
                     <div className={styles.dealQuickHeroHeader}>
-                      <h2>{dealMode === "view" ? "عرض الصفقة" : "إضافة صفقة"}</h2>
-                      <p>{dealMode === "view" ? "معلومات صفقة البيع الحالية" : "إضافة صفقة جديدة للزبون"}</p>
+                      <h2>
+                        {dealMode === "view" ? "عرض الصفقة" : dealMode === "edit" ? "تعديل الصفقة" : "إضافة صفقة"}
+                      </h2>
+                      <p>
+                        {dealMode === "view"
+                          ? "معلومات صفقة البيع الحالية"
+                          : dealMode === "edit"
+                            ? "حدّث بيانات صفقة البيع الحالية"
+                            : "إضافة صفقة جديدة للزبون"}
+                      </p>
                     </div>
                     <div className={styles.dealQuickTopBar}>
                       <div className={styles.dealQuickAvatarWrap}>
@@ -938,6 +1073,17 @@ export default function SalesPage() {
                           <small>ملاحظة الصفقة</small>
                           <p>{customerDeals[0].notes?.trim() || "لا توجد ملاحظة"}</p>
                         </div>
+                        <button
+                          type="button"
+                          className={styles.resetDateBtn}
+                          onClick={() => {
+                            setDealMode("create");
+                            setEditingDealId(null);
+                            resetDealForm();
+                          }}
+                        >
+                          إضافة صفقة أخرى
+                        </button>
                       </section>
                     </div>
                   ) : (
@@ -973,7 +1119,7 @@ export default function SalesPage() {
 
                       <section className={styles.dealQuickPanel}>
                         <h4>التفاصيل المالية</h4>
-                        <div className={styles.quickDealGrid}>
+                        <div className={`${styles.quickDealGrid} ${styles.quickDealGridSingleColumn}`}>
                           <label className={styles.profileLabel}>
                             السعر الكلي
                             <input
@@ -1047,47 +1193,46 @@ export default function SalesPage() {
 
               {quickError ? <p className={styles.profileError}>{quickError}</p> : null}
 
-              <div
-                className={`${styles.profileActions} ${
-                  quickAction === "note"
-                    ? styles.noteQuickActions
-                    : quickAction === "deal"
+              {quickAction !== "note" ? (
+                <div
+                  className={`${styles.profileActions} ${
+                    quickAction === "deal"
                       ? styles.dealQuickActions
                       : quickAction === "status"
                         ? styles.statusQuickActions
-                      : ""
-                }`}
-              >
-                <button type="button" onClick={closeQuickAction}>
-                  إلغاء
-                </button>
-                <button
-                  type="button"
-                  disabled={
-                    quickSaving ||
-                    (quickAction === "note" && !quickNote.trim())
-                  }
-                  onClick={
-                    quickAction === "status"
-                      ? submitStatus
-                      : quickAction === "note"
-                        ? submitNote
-                        : dealMode === "view"
-                          ? () => setDealMode("create")
-                          : submitDeal
-                  }
+                        : ""
+                  }`}
                 >
-                  {quickAction === "deal"
-                    ? dealMode === "view"
-                      ? "إضافة صفقة أخرى"
+                  <button type="button" onClick={closeQuickAction}>
+                    إلغاء
+                  </button>
+                  <button
+                    type="button"
+                    disabled={quickSaving}
+                    onClick={
+                      quickAction === "status"
+                        ? submitStatus
+                        : dealMode === "view"
+                          ? startDealEdit
+                          : submitDeal
+                    }
+                  >
+                    {quickAction === "deal"
+                      ? dealMode === "view"
+                        ? "تعديل الصفقة"
+                        : dealMode === "edit"
+                          ? quickSaving
+                            ? "جارِ حفظ التعديل..."
+                            : "حفظ التعديلات"
+                        : quickSaving
+                          ? "جارِ الحفظ..."
+                          : "حفظ الصفقة"
                       : quickSaving
                         ? "جارِ الحفظ..."
-                        : "حفظ الصفقة"
-                    : quickSaving
-                      ? "جارِ الحفظ..."
-                      : "حفظ"}
-                </button>
-              </div>
+                        : "حفظ"}
+                  </button>
+                </div>
+              ) : null}
             </div>
           </section>
         ) : null}

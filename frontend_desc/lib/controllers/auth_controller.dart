@@ -5,9 +5,13 @@ import '../models/user.dart';
 import '../services/auth_service.dart';
 
 class AuthController extends ChangeNotifier {
-  AuthController(this._authService);
+  AuthController(this._authService) {
+    _authService.onSessionInvalid = _handleSessionInvalid;
+    _authService.bindSessionHandler();
+  }
 
   final AuthService _authService;
+  bool _handlingSessionInvalid = false;
 
   AppUser? user;
   bool bootstrapping = true;
@@ -15,6 +19,18 @@ class AuthController extends ChangeNotifier {
   String? error;
 
   bool get isLoggedIn => user != null;
+
+  Future<void> _handleSessionInvalid() async {
+    if (_handlingSessionInvalid) return;
+    _handlingSessionInvalid = true;
+    try {
+      if (user == null && !bootstrapping) return;
+      user = null;
+      notifyListeners();
+    } finally {
+      _handlingSessionInvalid = false;
+    }
+  }
 
   /// Open app immediately from local cache, then quietly refresh from server.
   Future<void> bootstrap() async {
@@ -32,8 +48,8 @@ class AuthController extends ChangeNotifier {
       if (refreshed != null) {
         user = refreshed;
         notifyListeners();
-      } else {
-        // Token rejected by server.
+      } else if (user != null) {
+        // Token rejected by server after refresh failed.
         user = null;
         notifyListeners();
       }

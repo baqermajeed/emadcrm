@@ -3,7 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { getRoleHome } from "@/lib/auth";
+import { canAccessWebsite, getRoleHome } from "@/lib/auth";
 import { login } from "@/lib/api";
 import { storage } from "@/lib/storage";
 
@@ -22,6 +22,11 @@ export default function LoginPage() {
 
     try {
       const response = await login(username, password);
+      if (!canAccessWebsite(response.user.role)) {
+        storage.clear();
+        setError("هذا الحساب غير مسموح له بتسجيل الدخول إلى موقع الويب.");
+        return;
+      }
       storage.setToken(response.access_token);
       storage.setUser(response.user);
       router.replace(getRoleHome(response.user.role));
@@ -43,13 +48,13 @@ export default function LoginPage() {
           <Image
             className="login-logo"
             src="/assets/Premium%20Gold%20and%20Teal%20Real%20Estate%20Emblem.png"
-            alt="شعار عماد السكن"
+            alt="شعار نظام ادارة مبيعات عماد سكر"
             width={94}
             height={94}
             priority
           />
-          <h1>عماد السكن</h1>
-          <p>نظام إدارة المبيعات</p>
+          <h1>نظام ادارة مبيعات عماد سكر</h1>
+          <p>لوحة التحكم والمبيعات</p>
         </header>
 
         <article className="login-card fade-up" style={{ animationDelay: "120ms" }}>

@@ -10,7 +10,12 @@ class Settings(BaseSettings):
     database_name: str = "emad_crm"
     secret_key: str = "change-me"
     algorithm: str = "HS256"
-    access_token_expire_minutes: int = 1440
+    access_token_expire_minutes: int = 15
+    refresh_token_expire_days: int = 30
+    refresh_cookie_name: str = "refresh_token"
+    refresh_cookie_secure: bool = True
+    refresh_cookie_samesite: str = "lax"
+    refresh_cookie_domain: str | None = None
     upload_dir: str = "uploads"
     cors_origins: str = "*"
     max_upload_size_mb: int = 10

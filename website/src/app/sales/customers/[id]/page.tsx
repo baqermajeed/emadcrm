@@ -63,6 +63,29 @@ function formatMoney(value: number): string {
   return new Intl.NumberFormat("en-US").format(Math.round(value));
 }
 
+function optionalText(value: unknown): string | undefined {
+  if (value === null || value === undefined) return undefined;
+  const normalized = String(value).trim();
+  return normalized ? normalized : undefined;
+}
+
+function normalizeUnknownError(error: unknown, fallback: string): string {
+  if (typeof error === "string" && error.trim()) return error;
+  if (error instanceof Error) {
+    const message = error.message?.trim();
+    return message && message !== "[object Object]" ? message : fallback;
+  }
+  if (error && typeof error === "object") {
+    const record = error as Record<string, unknown>;
+    const messageCandidates = [record.detail, record.message, record.error, record.msg];
+    for (const candidate of messageCandidates) {
+      const normalized = optionalText(candidate);
+      if (normalized) return normalized;
+    }
+  }
+  return fallback;
+}
+
 function isImageDocument(doc: DocumentOut): boolean {
   return doc.content_type.startsWith("image/");
 }
@@ -253,11 +276,13 @@ export default function SalesCustomerProfilePage() {
     setDealSaving(true);
     setError("");
     try {
+      const profession = optionalText(customer.profession);
+      const email = optionalText(customer.email);
       await createDeal(token, {
         customer_id: customerId,
         name: customer.name,
-        profession: customer.profession,
-        email: customer.email,
+        profession,
+        email,
         phone: customer.phone,
         house_type: dealForm.houseType as "house" | "villa",
         total_price: totalPrice,
@@ -280,7 +305,7 @@ export default function SalesCustomerProfilePage() {
       });
       await loadDetails();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "تعذر إضافة صفقة البيع");
+      setError(normalizeUnknownError(err, "تعذر إضافة صفقة البيع"));
     } finally {
       setDealSaving(false);
     }

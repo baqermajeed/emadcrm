@@ -28,6 +28,8 @@ async function proxy(request: NextRequest, pathParts: string[]): Promise<NextRes
   const headers = new Headers();
   const auth = request.headers.get("authorization");
   if (auth) headers.set("authorization", auth);
+  const cookie = request.headers.get("cookie");
+  if (cookie) headers.set("cookie", cookie);
   headers.set("accept", "application/json");
 
   const contentType = request.headers.get("content-type");
@@ -51,11 +53,26 @@ async function proxy(request: NextRequest, pathParts: string[]): Promise<NextRes
   try {
     const response = await fetch(buildUrl(resolvedPath, request.nextUrl.searchParams), init);
     const body = await response.text();
+    const responseHeaders = new Headers();
+    const contentType = response.headers.get("content-type");
+    if (contentType) responseHeaders.set("content-type", contentType);
+
+    const getSetCookie = (
+      response.headers as Headers & { getSetCookie?: () => string[] }
+    ).getSetCookie;
+    if (typeof getSetCookie === "function") {
+      const cookies = getSetCookie.call(response.headers);
+      for (const setCookie of cookies) {
+        responseHeaders.append("set-cookie", setCookie);
+      }
+    } else {
+      const setCookie = response.headers.get("set-cookie");
+      if (setCookie) responseHeaders.set("set-cookie", setCookie);
+    }
+
     return new NextResponse(body, {
       status: response.status,
-      headers: {
-        "content-type": response.headers.get("content-type") ?? "application/json"
-      }
+      headers: responseHeaders
     });
   } catch {
     return NextResponse.json(
