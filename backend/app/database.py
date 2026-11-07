@@ -41,6 +41,8 @@ async def _ensure_indexes(db: AsyncIOMotorDatabase) -> None:
     await db.customers.create_index("call_center_id")
     await db.customers.create_index("created_at")
     await db.visits.create_index("customer_id")
+    await db.visits.create_index("visit_date")
+    await db.visits.create_index("sales_employee_id")
     await db.visits.create_index([("customer_id", 1), ("visit_date", -1)])
     await db.deals.create_index("customer_id")
     await db.deals.create_index("sales_employee_id")

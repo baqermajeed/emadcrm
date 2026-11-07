@@ -11,17 +11,16 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../controllers/auth_controller.dart';
-import '../../controllers/booking_controller.dart';
-import '../../controllers/customer_controller.dart';
 import '../../core/api_client.dart';
 import '../../core/cache_service.dart';
 import '../../core/live_summary_cache.dart';
 import '../../core/reception_tokens.dart';
-import '../../models/booking.dart';
 import '../../models/report.dart';
 import '../../models/user.dart';
+import '../../models/visit.dart';
 import '../../services/report_service.dart';
 import '../../services/user_service.dart';
+import '../../services/visit_service.dart';
 import '../../utils/enums.dart';
 import '../../utils/formatters.dart';
 import '../../widgets/reception/reception_assets.dart';
@@ -46,12 +45,19 @@ class _VisitsLogScreenState extends State<VisitsLogScreen> {
 
   List<AppUser> _sales = [];
   List<AppUser> _callCenter = [];
+  List<Visit> _visits = [];
   String? _salesId; // null = all
   String? _callCenterId; // null = all
   DateTime? _fromDate;
   DateTime? _toDate;
   LiveSummary? _summary;
   Timer? _searchDebounce;
+  bool _loading = true;
+  bool _loadingMore = false;
+  bool _hasMore = true;
+  int _page = 0;
+  int? _totalCount;
+  static const _pageSize = 30;
   static final _summaryCache = LiveSummaryCache();
 
   @override
@@ -62,21 +68,17 @@ class _VisitsLogScreenState extends State<VisitsLogScreen> {
 
   Future<void> _bootstrap() async {
     final api = context.read<ApiClient>();
-    final bookings = context.read<BookingController>();
-    final customers = context.read<CustomerController>();
-    await bookings.load(status: BookingStatus.approved);
-    if (customers.items.isEmpty) {
-      await customers.load();
-    } else {
-      customers.load();
-    }
     try {
       final users = UserService(api);
       _sales = await users.list(role: UserRole.sales);
       _callCenter = await users.list(role: UserRole.callCenter);
-      await _loadSummary(api);
-    } catch (_) {}
-    if (mounted) setState(() {});
+      await Future.wait([
+        _loadVisitsFromFilters(),
+        _loadSummary(api),
+      ]);
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   Future<void> _loadSummary(ApiClient api) async {
@@ -102,29 +104,10 @@ class _VisitsLogScreenState extends State<VisitsLogScreen> {
     super.dispose();
   }
 
-  bool _isTodayVisit(Booking b) {
+  bool _isTodayVisit(Visit v) {
     final now = DateTime.now();
-    final d = b.visitLoggedAt.toLocal();
+    final d = v.visitDate.toLocal();
     return d.year == now.year && d.month == now.month && d.day == now.day;
-  }
-
-  /// Pending and visit date is still today or in the future.
-  bool _isUpcomingPending(Booking b) {
-    return b.effectiveStatus == BookingStatus.pending;
-  }
-
-  /// Cancelled, no-show, or pending whose date has passed.
-  bool _isMissedOrCancelled(Booking b) {
-    final s = b.effectiveStatus;
-    return s == BookingStatus.cancelled || s == BookingStatus.noShow;
-  }
-
-  /// زيارة = حجز تم تأكيد حضوره فقط (ليس الحجوزات المعلقة).
-  List<Booking> _confirmedVisits(List<Booking> bookings) =>
-      bookings.where((b) => b.status == BookingStatus.approved).toList();
-
-  List<Booking> _filtered(List<Booking> visits) {
-    return visits;
   }
 
   Future<void> _pickDate({required bool from}) async {
@@ -158,54 +141,122 @@ class _VisitsLogScreenState extends State<VisitsLogScreen> {
 
   Future<void> _loadVisitsFromFilters({String? queryOverride}) async {
     final query = (queryOverride ?? _search.text).trim();
-    await context.read<BookingController>().load(
-          status: BookingStatus.approved,
-          search: query.isEmpty ? null : query,
-          fromDate: _fromDate,
-          toDate: _toDate == null
-              ? null
-              : DateTime(
-                  _toDate!.year,
-                  _toDate!.month,
-                  _toDate!.day,
-                  23,
-                  59,
-                  59,
-                ),
-          callCenterId: _callCenterId,
-          salesEmployeeId: _salesId,
-          sortDir: 'desc',
-        );
+    final api = context.read<ApiClient>();
+    setState(() {
+      _loading = true;
+      _page = 1;
+      _hasMore = true;
+      _totalCount = null;
+    });
+    try {
+      final result = await VisitService(api).listPaged(
+        search: query.isEmpty ? null : query,
+        fromDate: _fromDate,
+        toDate: _toDate == null
+            ? null
+            : DateTime(
+                _toDate!.year,
+                _toDate!.month,
+                _toDate!.day,
+                23,
+                59,
+                59,
+              ),
+        callCenterId: _callCenterId,
+        salesEmployeeId: _salesId,
+        sortDir: 'desc',
+        page: 1,
+        pageSize: _pageSize,
+      );
+      if (!mounted) return;
+      setState(() {
+        _visits = result.items;
+        _page = 1;
+        _hasMore = result.hasMore;
+        _totalCount = result.total;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _visits = [];
+        _hasMore = false;
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _loadMoreVisits() async {
+    if (_loading || _loadingMore || !_hasMore) return;
+    final api = context.read<ApiClient>();
+    final nextPage = _page + 1;
+    setState(() => _loadingMore = true);
+    try {
+      final query = _search.text.trim();
+      final result = await VisitService(api).listPaged(
+        search: query.isEmpty ? null : query,
+        fromDate: _fromDate,
+        toDate: _toDate == null
+            ? null
+            : DateTime(
+                _toDate!.year,
+                _toDate!.month,
+                _toDate!.day,
+                23,
+                59,
+                59,
+              ),
+        callCenterId: _callCenterId,
+        salesEmployeeId: _salesId,
+        sortDir: 'desc',
+        page: nextPage,
+        pageSize: _pageSize,
+      );
+      if (!mounted) return;
+      setState(() {
+        final existing = {for (final v in _visits) v.id};
+        _visits = [
+          ..._visits,
+          ...result.items.where((v) => !existing.contains(v.id)),
+        ];
+        _page = nextPage;
+        _hasMore = result.hasMore;
+        _totalCount = result.total ?? _totalCount;
+        _loadingMore = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loadingMore = false);
+    }
   }
 
   void _runServerSearch(String query) {
     _searchDebounce?.cancel();
     _searchDebounce = Timer(const Duration(milliseconds: 300), () async {
+      if (!mounted) return;
+      final api = context.read<ApiClient>();
       final trimmed = query.trim();
       await _loadVisitsFromFilters(queryOverride: trimmed);
-      await _loadSummary(context.read<ApiClient>());
+      if (!mounted) return;
+      await _loadSummary(api);
     });
   }
 
   Future<void> _refreshPage() async {
+    final api = context.read<ApiClient>();
     await _loadVisitsFromFilters();
-    await _loadSummary(context.read<ApiClient>());
+    if (!mounted) return;
+    await _loadSummary(api);
   }
 
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthController>();
-    final bookings = context.watch<BookingController>();
-    final allBookings = bookings.items;
-    final visits = _confirmedVisits(allBookings);
-    final filtered = _filtered(visits);
-    final total = bookings.totalCount ?? filtered.length;
-    final todayCount = filtered.where(_isTodayVisit).length;
+    final total = _totalCount ?? _visits.length;
+    final todayCount = _visits.where(_isTodayVisit).length;
     final attended = total;
-    final awaitingConfirm =
-        _summary?.pendingBookings ?? allBookings.where(_isUpcomingPending).length;
-    final missed =
-        _summary?.missedBookings ?? allBookings.where(_isMissedOrCancelled).length;
+    final awaitingConfirm = _summary?.pendingBookings ?? 0;
+    final missed = _summary?.missedBookings ?? 0;
 
     return ColoredBox(
       color: const Color(0xFFF4F7FE),
@@ -217,7 +268,7 @@ class _VisitsLogScreenState extends State<VisitsLogScreen> {
             avatarUrl: auth.user?.avatarUrl,
             search: _search,
             suggestions: ReceptionSearchBar.uniqueOf([
-              for (final b in visits) ...[b.name, b.phone],
+              for (final v in _visits) ...[v.displayName, v.displayPhone],
             ]),
             onSearch: () => _runServerSearch(_search.text),
             onQueryChanged: _runServerSearch,
@@ -237,7 +288,7 @@ class _VisitsLogScreenState extends State<VisitsLogScreen> {
                     attended: attended,
                     awaitingConfirm: awaitingConfirm,
                     missed: missed,
-                    loading: bookings.loading && allBookings.isEmpty,
+                    loading: _loading && _visits.isEmpty,
                   ),
                   const SizedBox(height: 8),
                   _FiltersBar(
@@ -247,7 +298,7 @@ class _VisitsLogScreenState extends State<VisitsLogScreen> {
                     callCenterId: _callCenterId,
                     fromDate: _fromDate,
                     toDate: _toDate,
-                    resultCount: filtered.length,
+                    resultCount: _visits.length,
                     onSales: (v) {
                       setState(() => _salesId = v);
                       unawaited(_loadVisitsFromFilters());
@@ -269,15 +320,12 @@ class _VisitsLogScreenState extends State<VisitsLogScreen> {
                   const SizedBox(height: 8),
                   Expanded(
                     child: _VisitsTable(
-                      rows: filtered,
-                      loading: bookings.loading && allBookings.isEmpty,
-                      hasMore: bookings.hasMore,
-                      loadingMore: bookings.loadingMore,
-                      onLoadMore: () => context.read<BookingController>().loadMore(),
-                      onOpen: (b) {
-                        final id = b.customerId;
-                        if (id != null) widget.onOpenCustomer?.call(id);
-                      },
+                      rows: _visits,
+                      loading: _loading && _visits.isEmpty,
+                      hasMore: _hasMore,
+                      loadingMore: _loadingMore,
+                      onLoadMore: _loadMoreVisits,
+                      onOpen: (v) => widget.onOpenCustomer?.call(v.customerId),
                     ),
                   ),
                 ],
@@ -852,12 +900,12 @@ class _VisitsTable extends StatelessWidget {
     required this.onOpen,
   });
 
-  final List<Booking> rows;
+  final List<Visit> rows;
   final bool loading;
   final bool hasMore;
   final bool loadingMore;
   final VoidCallback onLoadMore;
-  final ValueChanged<Booking> onOpen;
+  final ValueChanged<Visit> onOpen;
 
   static const _tableMinWidth = 1380.0;
   static const _colGap = 14.0;
@@ -1107,7 +1155,7 @@ class _VisitsTable extends StatelessWidget {
     );
   }
 
-  Widget _dataRow(BuildContext context, Booking b, int index, bool alt) {
+  Widget _dataRow(BuildContext context, Visit v, int index, bool alt) {
     final style = GoogleFonts.cairo(
       fontWeight: FontWeight.w700,
       fontSize: 12,
@@ -1118,15 +1166,15 @@ class _VisitsTable extends StatelessWidget {
       fontSize: 11,
       color: _tableText.withValues(alpha: 0.72),
     );
-    final when = b.visitLoggedAt.toLocal();
+    final when = v.visitDate.toLocal();
     final date = DateFormat('dd/MM/yyyy').format(when);
     final time = DateFormat('hh:mm a', 'ar').format(when);
-    final firstVisit = b.isFirstVisit;
+    final firstVisit = v.isFirstVisit;
 
     return Material(
       color: alt ? const Color(0xFFF7FBFC) : Colors.white,
       child: InkWell(
-        onTap: () => onOpen(b),
+        onTap: () => onOpen(v),
         child: Container(
           height: _villaH,
           padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -1171,7 +1219,7 @@ class _VisitsTable extends StatelessWidget {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      b.name,
+                      v.displayName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: style,
@@ -1194,7 +1242,7 @@ class _VisitsTable extends StatelessWidget {
                   const SizedBox(width: 4),
                   Flexible(
                     child: Text(
-                      b.phone,
+                      v.displayPhone,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: style,
@@ -1206,27 +1254,27 @@ class _VisitsTable extends StatelessWidget {
             _flex(
               1,
               Text(
-                b.governorate,
+                v.displayAddress,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: style,
               ),
             ),
             _fixed(104, Center(child: _typeChip(firstVisit))),
-            _fixed(112, Center(child: _statusChip(b))),
+            _fixed(112, Center(child: _statusChip())),
             _flex(
               2,
               Row(
                 children: [
                   StaffAvatar(
-                    avatarUrl: b.callCenterAvatarUrl,
+                    avatarUrl: v.callCenterAvatarUrl,
                     radius: 15,
                     backgroundColor: const Color(0xFFE8F0FE),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      b.callCenterName ?? '—',
+                      v.callCenterName ?? '—',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: style,
@@ -1238,7 +1286,7 @@ class _VisitsTable extends StatelessWidget {
             _fixed(
               72,
               Text(
-                (b.notes ?? '').trim().isEmpty ? '—' : b.notes!.trim(),
+                (v.notes ?? '').trim().isEmpty ? '—' : v.notes!.trim(),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: muted,
@@ -1250,21 +1298,21 @@ class _VisitsTable extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   _GlassActionBtn(
-                    onTap: () => onOpen(b),
+                    onTap: () => onOpen(v),
                     bg: const Color(0xFFEFF6FF),
                     fg: const Color(0xFF1E6FD9),
                     child: const Icon(Icons.edit_outlined, size: 15, color: Color(0xFF1E6FD9)),
                   ),
                   const SizedBox(width: 4),
                   _GlassActionBtn(
-                    onTap: () => _openWhatsApp(context, b.phone),
+                    onTap: () => _openWhatsApp(context, v.displayPhone),
                     bg: const Color(0xFFE8F8EF),
                     fg: const Color(0xFF059669),
                     child: RAssets.source('whatsapp', size: 16),
                   ),
                   const SizedBox(width: 4),
                   _GlassActionBtn(
-                    onTap: () => onOpen(b),
+                    onTap: () => onOpen(v),
                     bg: const Color(0xFFEFF6FF),
                     fg: const Color(0xFF1E6FD9),
                     child: const Icon(Icons.visibility_outlined, size: 15, color: Color(0xFF1E6FD9)),
@@ -1308,39 +1356,12 @@ class _VisitsTable extends StatelessWidget {
     );
   }
 
-  Widget _statusChip(Booking b) {
-    late Color bg;
-    late Color fg;
-    late IconData icon;
-    late String label;
-
-    if (b.status == BookingStatus.approved) {
-      bg = const Color(0xFFD1FAE5);
-      fg = const Color(0xFF047857);
-      icon = Icons.check_circle_rounded;
-      label = 'مكتملة';
-    } else if (b.status == BookingStatus.cancelled) {
-      bg = const Color(0xFFFEE2E2);
-      fg = const Color(0xFFB91C1C);
-      icon = Icons.cancel_rounded;
-      label = 'ملغاة';
-    } else if (b.effectiveStatus == BookingStatus.noShow) {
-      bg = const Color(0xFFE8EDF0);
-      fg = const Color(0xFF5B6B75);
-      icon = Icons.person_off_rounded;
-      label = 'لم يحضر';
-    } else {
-      bg = const Color(0xFFFFEDD5);
-      fg = const Color(0xFFC2410C);
-      icon = Icons.access_time_filled_rounded;
-      label = 'قيد الزيارة';
-    }
-
-    return _GlassShimmerChip(
-      bg: bg,
-      fg: fg,
-      label: label,
-      icon: icon,
+  Widget _statusChip() {
+    return const _GlassShimmerChip(
+      bg: Color(0xFFD1FAE5),
+      fg: Color(0xFF047857),
+      label: 'مكتملة',
+      icon: Icons.check_circle_rounded,
     );
   }
 }
